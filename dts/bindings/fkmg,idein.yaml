@@ -1,0 +1,9 @@
+description: FKMG Idein Device Tree Definition
+
+compatible: "fkmg,idein"
+
+properties:
+  gen-gpios:
+    type: phandle-array
+    required: false
+    description: Handles all GPIOs for Idein App
