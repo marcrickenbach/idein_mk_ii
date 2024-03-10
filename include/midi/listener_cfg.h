@@ -1,9 +1,9 @@
 /** ****************************************************************************
- * @brief UART listener configuration interface.
+ * @brief MIDI listener configuration interface.
  */
 
-#ifndef FKMG_UART_LISTENER_CB_CFG_H
-#define FKMG_UART_LISTENER_CB_CFG_H
+#ifndef FKMG_MIDI_LISTENER_CB_CFG_H
+#define FKMG_MIDI_LISTENER_CB_CFG_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,25 +24,25 @@ extern "C" {
 
 /* Forward references to prevent include interdependent items getting declared
  * out-of-order. */
-struct UART_Instance;
-struct UART_Listener;
+struct MIDI_Instance;
+struct MIDI_Listener;
 
-struct UART_Listener_Cfg{
+struct MIDI_Listener_Cfg{
     /* Required: pointer to initialized opaque instace we'll add listener to. */
-    struct UART_Instance * p_inst;
+    struct MIDI_Instance * p_inst;
 
     /* Required: pointer to uninitialized/unused opaque listener to config. */
-    struct UART_Listener * p_lsnr;
+    struct MIDI_Listener * p_lsnr;
 
     /* Required: event signal to listen for. */
-    enum UART_Evt_Sig sig;
+    enum MIDI_Evt_Sig sig;
 
     /* Required: function to call back and send event to when signal occurs. */
-    UART_Listener_Cb cb;
+    MIDI_Listener_Cb cb;
 };
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* FKMG_UART_LISTENER_CB_CFG_H */
+#endif /* FKMG_MIDI_LISTENER_CB_CFG_H */

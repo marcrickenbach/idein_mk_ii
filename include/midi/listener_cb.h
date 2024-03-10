@@ -1,9 +1,9 @@
 /** ****************************************************************************
- * @brief UART listener definition.
+ * @brief MIDI listener definition.
  */
 
-#ifndef FKMG_UART_LISTENER_CB_H
-#define FKMG_UART_LISTENER_CB_H
+#ifndef FKMG_MIDI_LISTENER_CB_H
+#define FKMG_MIDI_LISTENER_CB_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -21,12 +21,12 @@ extern "C" {
 
 /* Forward references to prevent include interdependent items getting declared
  * out-of-order. */
-struct UART_Evt;
+struct MIDI_Evt;
 
-typedef void (*UART_Listener_Cb)(struct UART_Evt *p_evt);
+typedef void (*MIDI_Listener_Cb)(struct MIDI_Evt *p_evt);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* FKMG_UART_LISTENER_CB_H */
+#endif /* FKMG_MIDI_LISTENER_CB_H */

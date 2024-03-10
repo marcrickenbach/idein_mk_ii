@@ -1,5 +1,5 @@
 /** ****************************************************************************
- * @brief UART instance interface.
+ * @brief MIDI instance interface.
  *
  * An instance is the root instantiation of the implementation. An instance
  * contains everything required to declare and define all the threads, queues,
@@ -7,8 +7,8 @@
  * only one is required or even possible.
  */
 
-#ifndef FKMG_UART_INSTANCE_H
-#define FKMG_UART_INSTANCE_H
+#ifndef FKMG_MIDI_INSTANCE_H
+#define FKMG_MIDI_INSTANCE_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -36,10 +36,10 @@ extern "C" {
  * Instance
  */
 
-struct UART_Instance{
-    #if CONFIG_FKMG_UART_RUNTIME_ERROR_CHECKING
+struct MIDI_Instance{
+    #if CONFIG_FKMG_MIDI_RUNTIME_ERROR_CHECKING
     /* Error status. */
-	enum UART_Err_Id err;
+	enum MIDI_Err_Id err;
     #endif
 
     /* Threads used. */
@@ -59,11 +59,11 @@ struct UART_Instance{
 	struct smf_ctx sm;
 
     /* Current sm event. */
-    struct UART_SM_Evt sm_evt;
+    struct MIDI_SM_Evt sm_evt;
 
     /* Singly linked lists to keep track of things. */
     struct{
-        sys_slist_t listeners[k_UART_Evt_Sig_Cnt];
+        sys_slist_t listeners[k_MIDI_Evt_Sig_Cnt];
     }list;
 
     /* For adding this instance to singly linked lists. */
@@ -76,11 +76,11 @@ struct UART_Instance{
     }midi; 
 
     /* Current pot. */
-    enum UART_Id id;
+    enum MIDI_Id id;
 };
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* FKMG_UART_INSTANCE_H */
+#endif /* FKMG_MIDI_INSTANCE_H */

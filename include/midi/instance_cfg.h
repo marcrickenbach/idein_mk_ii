@@ -1,9 +1,9 @@
 /** ****************************************************************************
- * @brief UART instance configuration interface.
+ * @brief MIDI instance configuration interface.
  */
 
-#ifndef FKMG_UART_INSTANCE_CFG_H
-#define FKMG_UART_INSTANCE_CFG_H
+#ifndef FKMG_MIDI_INSTANCE_CFG_H
+#define FKMG_MIDI_INSTANCE_CFG_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,13 +27,13 @@ extern "C" {
 
 /* Forward references to prevent include interdependent items getting declared
  * out-of-order. */
-struct UART_Instance;
+struct MIDI_Instance;
 
 /* Everything needed to configure an instance. */
-struct UART_Instance_Cfg{
+struct MIDI_Instance_Cfg{
     /* Required: pointer to opaque instance to config. Lifetime of instance: as
      * long as in use, which is likely lifetime of system uptime. */
-    struct UART_Instance * p_inst;
+    struct MIDI_Instance * p_inst;
 
     /* Required: the implementation consists of 1 thread: the main state
      * machine, which handles operational states such as disconnected/connected,
@@ -56,20 +56,20 @@ struct UART_Instance_Cfg{
         }sm /* state machine */;
     }task;
 
-    /* Required: for queuing state machine events (UART_SM_Evt). */
+    /* Required: for queuing state machine events (MIDI_SM_Evt). */
     struct{
         /* State machine event message queue. */
         struct k_msgq * p_sm_evts;
     }msgq;
 
     /* Optional: asynchronous callback to call after interface initialized. The
-     * callback is sent event with signal k_UART_Sig_Instance_Initialized. NULL
+     * callback is sent event with signal k_MIDI_Sig_Instance_Initialized. NULL
      * skips callback. */
-    UART_Listener_Cb cb;
+    MIDI_Listener_Cb cb;
 };
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* FKMG_UART_INSTANCE_CFG_H */
+#endif /* FKMG_MIDI_INSTANCE_CFG_H */

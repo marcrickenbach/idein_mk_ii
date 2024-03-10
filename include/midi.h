@@ -1,13 +1,13 @@
 /*******************************************************************************
- * @brief UART interface.
+ * @brief MIDI interface.
  *
- * This module is the public api to interface with UART.
+ * This module is the public api to interface with MIDI.
  *
  * @example
  */
 
-#ifndef FKMG_UART_H
-#define FKMG_UART_H
+#ifndef FKMG_MIDI_H
+#define FKMG_MIDI_H
 
 /* In case C++ needs to use anything here */
 #ifdef __cplusplus
@@ -20,10 +20,10 @@ extern “C” {
 
 #include <zephyr/kernel.h>
 
-#include "uart/instance.h"
-#include "uart/instance_cfg.h"
-#include "uart/listener.h"
-#include "uart/listener_cfg.h"
+#include "midi/instance.h"
+#include "midi/instance_cfg.h"
+#include "midi/listener.h"
+#include "midi/listener_cfg.h"
 
 /* *****************************************************************************
  * Public
@@ -40,15 +40,15 @@ extern “C” {
  * @param[in] p_cfg Pointer to the filled-in configuration struct. See the
  * struct for details.
  */
-void UART_Init_Instance(struct UART_Instance_Cfg * p_cfg);
+void MIDI_Init_Instance(struct MIDI_Instance_Cfg * p_cfg);
 
 /**
  * Deinitialize an instance.
  * @param[in] p_dcfg Pointer to the filled-in deconfiguration struct. See the
  * struct for details.
  */
-#if CONFIG_FKMG_UART_ALLOW_SHUTDOWN
-void UART_Deinit_Instance(struct UART_Instance_Dcfg * p_dcfg);
+#if CONFIG_FKMG_MIDI_ALLOW_SHUTDOWN
+void MIDI_Deinit_Instance(struct MIDI_Instance_Dcfg * p_dcfg);
 #endif
 
 /**
@@ -56,10 +56,10 @@ void UART_Deinit_Instance(struct UART_Instance_Dcfg * p_dcfg);
  * @param[in] p_cfg Pointer to the filled-in configuration struct. See the
  * struct for details.
  */
-void UART_Add_Listener(struct UART_Listener_Cfg * p_cfg);
+void MIDI_Add_Listener(struct MIDI_Listener_Cfg * p_cfg);
 
-#if CONFIG_FKMG_UART_ALLOW_LISTENER_REMOVAL
-void UART_Remove_Listener(struct UART_Listener * p_lsnr);
+#if CONFIG_FKMG_MIDI_ALLOW_LISTENER_REMOVAL
+void MIDI_Remove_Listener(struct MIDI_Listener * p_lsnr);
 #endif
 
 /* Public API functions to consider:
@@ -69,4 +69,4 @@ void UART_Remove_Listener(struct UART_Listener * p_lsnr);
 }
 #endif
 
-#endif /* FKMG_UART_H */
+#endif /* FKMG_MIDI_H */

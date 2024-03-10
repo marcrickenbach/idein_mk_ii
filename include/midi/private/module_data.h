@@ -1,11 +1,11 @@
 /*******************************************************************************
- * @brief UART module data interface.
+ * @brief MIDI module data interface.
  *
  * This is the private module data.
  */
 
-#ifndef FKMG_UART_MODULE_DATA_H
-#define FKMG_UART_MODULE_DATA_H
+#ifndef FKMG_MIDI_MODULE_DATA_H
+#define FKMG_MIDI_MODULE_DATA_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -25,7 +25,7 @@ extern "C" {
  * Structs
  */
 
-struct uart_module_data{
+struct midi_module_data{
     bool initialized;
 
     /* Singly linked lists to keep track of things. */
@@ -38,4 +38,4 @@ struct uart_module_data{
 }
 #endif
 
-#endif /* FKMG_UART_MODULE_DATA_H */
+#endif /* FKMG_MIDI_MODULE_DATA_H */

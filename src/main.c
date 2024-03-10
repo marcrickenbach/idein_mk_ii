@@ -24,8 +24,8 @@
 #include "idein.h"
 #include "idein/private/sm_evt.h"
 
-#include "uart.h"
-#include "uart/private/sm_evt.h"
+#include "midi.h"
+#include "midi/private/sm_evt.h"
 
 #include "sensor.h"
 #include "sensor/private/sm_evt.h"
@@ -75,15 +75,15 @@ K_MSGQ_DEFINE(idein_sm_evt_q, sizeof(struct Idein_SM_Evt),
 static struct Idein_Instance idein_inst;
 
 
-/* Declare threads, queues, and other data structures for UART / MIDI instance. */
-static struct k_thread uart_thread;
-#define UART_THREAD_STACK_SZ_BYTES   512
-K_THREAD_STACK_DEFINE(uart_thread_stack, UART_THREAD_STACK_SZ_BYTES);
-#define MAX_QUEUED_UART_SM_EVTS  10
-#define UART_SM_QUEUE_ALIGNMENT  4
-K_MSGQ_DEFINE(uart_sm_evt_q, sizeof(struct UART_SM_Evt),
-        MAX_QUEUED_UART_SM_EVTS, UART_SM_QUEUE_ALIGNMENT);
-static struct UART_Instance uart_inst;
+/* Declare threads, queues, and other data structures for MIDI / MIDI instance. */
+static struct k_thread midi_thread;
+#define MIDI_THREAD_STACK_SZ_BYTES   512
+K_THREAD_STACK_DEFINE(midi_thread_stack, MIDI_THREAD_STACK_SZ_BYTES);
+#define MAX_QUEUED_MIDI_SM_EVTS  10
+#define MIDI_SM_QUEUE_ALIGNMENT  4
+K_MSGQ_DEFINE(midi_sm_evt_q, sizeof(struct MIDI_SM_Evt),
+        MAX_QUEUED_MIDI_SM_EVTS, MIDI_SM_QUEUE_ALIGNMENT);
+static struct MIDI_Instance midi_inst;
 
 
 /* Declare threads, queues, and other data structures for Sensor instance. */
@@ -146,14 +146,14 @@ static void on_idein_instance_initialized(struct Idein_Evt *p_evt)
 	k_event_post(&events, EVT_FLAG_INSTANCE_INITIALIZED);
 }
 
-static void on_uart_instance_initialized(struct UART_Evt *p_evt)
+static void on_midi_instance_initialized(struct MIDI_Evt *p_evt)
 {
-    assert(p_evt->sig == k_UART_Evt_Sig_Instance_Initialized);
-    assert(p_evt->data.initd.p_inst == &uart_inst);
+    assert(p_evt->sig == k_MIDI_Evt_Sig_Instance_Initialized);
+    assert(p_evt->data.initd.p_inst == &midi_inst);
 	k_event_post(&events, EVT_FLAG_INSTANCE_INITIALIZED);
 }
 
-static void on_sensor_instance_initialized(struct UART_Evt *p_evt)
+static void on_sensor_instance_initialized(struct MIDI_Evt *p_evt)
 {
     assert(p_evt->sig == k_Sensor_Evt_Sig_Instance_Initialized);
     assert(p_evt->data.initd.p_inst == &sensor_inst);
@@ -189,13 +189,13 @@ static void on_pot_changed(struct Pot_Evt *p_evt)
 
     /* Only need to send voltages to store in the MIDI object */
     if (p_changed->pot_id < 16) {
-        struct UART_SM_Evt uart_evt = {
-            .sig = k_UART_Evt_Sig_Changed,
+        struct MIDI_SM_Evt midi_evt = {
+            .sig = k_MIDI_Evt_Sig_Changed,
             .data.changed.stp = (uint8_t)p_changed->pot_id,
             .data.changed.val = p_changed->val
         }; 
 
-        k_msgq_put(&uart_sm_evt_q, &uart_evt, K_NO_WAIT); 
+        k_msgq_put(&midi_sm_evt_q, &midi_evt, K_NO_WAIT); 
     }
 }
 
@@ -204,18 +204,18 @@ static void on_pot_changed(struct Pot_Evt *p_evt)
  * ON MIDI READY TO WRITE CHANGE
  * ********************/
 
-static void on_midi_write_ready(struct UART_Evt *p_evt) 
+static void on_midi_write_ready(struct MIDI_Evt *p_evt) 
 {
-    assert(p_evt->sig == k_UART_Evt_Sig_Write_Ready);
+    assert(p_evt->sig == k_MIDI_Evt_Sig_Write_Ready);
 
-    struct UART_SM_Evt_Sig_Write_MIDI * p_write = (struct UART_SM_Evt_Sig_Write_MIDI *) &p_evt->data.midi_write; 
+    struct MIDI_SM_Evt_Sig_Write_MIDI * p_write = (struct MIDI_SM_Evt_Sig_Write_MIDI *) &p_evt->data.midi_write; 
 
-    struct UART_SM_Evt evt = {
-            .sig = k_UART_SM_Evt_Sig_Write_MIDI,
+    struct MIDI_SM_Evt evt = {
+            .sig = k_MIDI_SM_Evt_Sig_Write_MIDI,
             .data.midi_write = *p_write
     };
 
-    k_msgq_put(&uart_sm_evt_q, &evt, K_NO_WAIT); 
+    k_msgq_put(&midi_sm_evt_q, &evt, K_NO_WAIT); 
 }
 
 
@@ -272,17 +272,17 @@ static void on_sensor_read(struct Sensor_Evt *p_evt)
     wait_on_instance_initialized();
 
 
-     /* Instance: UART Module */
-    struct UART_Instance_Cfg uart_inst_cfg = {
-        .p_inst = &uart_inst,
-        .task.sm.p_thread = &uart_thread,
-        .task.sm.p_stack = uart_thread_stack,
-        .task.sm.stack_sz = K_THREAD_STACK_SIZEOF(uart_thread_stack),
+     /* Instance: MIDI Module */
+    struct MIDI_Instance_Cfg midi_inst_cfg = {
+        .p_inst = &midi_inst,
+        .task.sm.p_thread = &midi_thread,
+        .task.sm.p_stack = midi_thread_stack,
+        .task.sm.stack_sz = K_THREAD_STACK_SIZEOF(midi_thread_stack),
         .task.sm.prio = K_LOWEST_APPLICATION_THREAD_PRIO,
-        .msgq.p_sm_evts = &uart_sm_evt_q,
-        .cb = on_uart_instance_initialized,
+        .msgq.p_sm_evts = &midi_sm_evt_q,
+        .cb = on_midi_instance_initialized,
     };
-    UART_Init_Instance(&uart_inst_cfg);
+    MIDI_Init_Instance(&midi_inst_cfg);
     wait_on_instance_initialized();
 
 
@@ -330,7 +330,7 @@ static void on_sensor_read(struct Sensor_Evt *p_evt)
     struct Idein_Listener_Cfg midi_write_lsnr_cfg = {
         .p_inst = &idein_inst,
         .p_lsnr = &midi_write_lsnr, 
-        .sig     = k_UART_Evt_Sig_Write_Ready,
+        .sig     = k_MIDI_Evt_Sig_Write_Ready,
         .cb      = on_midi_write_ready
     };
     Idein_Add_Listener(&midi_write_lsnr_cfg);

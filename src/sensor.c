@@ -14,6 +14,7 @@
 
 #include <zephyr/smf.h>
 #include <zephyr/drivers/sensor.h>
+#include <zephyr/device.h>
 
 #include <assert.h>
 
@@ -52,6 +53,15 @@ static struct sensor_module_data sensor_md = {0};
 /* Convenience accessor to keep name short: md - module data. */
 #define md sensor_md
 
+const struct device *dev;
+struct sensor_value als_ir, als_red, als_green, als_blue;
+
+	// printk("APDS9960 sample application\n");
+	// dev = DEVICE_DT_GET_ONE(avago_apds9960);
+	// if (!device_is_ready(dev)) {
+	// 	printk("sensor: device not ready.\n");
+	// 	return 0;
+	// }
 
 /* *****************************************************************************
  * Private
@@ -160,15 +170,24 @@ static void config_instance_queues(
 }
 
 /* Forward reference */
- 
+static void on_sensor_timer_expiry(struct k_timer * p_timer);
+/* Cause conversion event to occur immediately and then regularly after that. */
+static void init_sensor_timer(struct Sensor_Instance * p_inst)
+{
+    #define ON_SENSOR_TIMER_EXPIRY  on_sensor_timer_expiry
+    #define ON_SENSOR_TIMER_STOPPED NULL
+    k_timer_init(&p_inst->timer.sensor, ON_SENSOR_TIMER_EXPIRY,
+            ON_SENSOR_TIMER_STOPPED);
+}
 
-// static void config_instance_deferred(
-//         struct Pot_Instance     * p_inst,
-//         struct Pot_Instance_Cfg * p_cfg)
-// {
+static void config_instance_deferred(
+        struct Pot_Instance     * p_inst,
+        struct Pot_Instance_Cfg * p_cfg)
+{
 
+    init_conversion_timer(p_inst);
 
-// }
+}
 
 /* Since configuration starts on caller's thread, configure fields that require
  * immediate and/or inconsequential configuration and defer rest to be handled
@@ -381,6 +400,24 @@ static void q_init_instance_event(struct Sensor_Instance_Cfg * p_cfg)
     q_sm_event(p_inst, &evt);
 }
 
+static void on_sensor_timer_expiry(struct k_timer * p_timer)
+{
+    struct Pot_Instance * p_inst =
+        CONTAINER_OF(p_timer, struct Sensor_Instance, timer.sensor);
+
+    // FIXME: This is where we get a sensor reading. 
+
+}
+
+/* Cause conversion event to occur immediately and then regularly after that. */
+static void start_sensor_timer(struct Sensor_Instance * p_inst)
+{
+    #define CONVERSION_INITIAL_DURATION     K_NO_WAIT
+    #define CONVERSION_AUTO_RELOAD_PERIOD   K_MSEC(10)
+    k_timer_start(&p_inst->timer.sensor, CONVERSION_INITIAL_DURATION,
+            CONVERSION_AUTO_RELOAD_PERIOD);
+
+}
 
 /* **********
  * FSM States
@@ -478,6 +515,7 @@ static void state_run_entry(void * o)
     struct smf_ctx * p_sm = o;
     struct Sensor_Instance * p_inst = sm_ctx_to_instance(p_sm);
 
+    start_sensor_timer(p_inst);
 
 }
 
@@ -496,10 +534,17 @@ static void state_run_run(void * o)
             assert(false);
             break;
         case k_Sensor_Evt_Sig_Read:
-            // struct Sensor_SM_Evt_Sig_Convert * p_convert = &p_evt->data.convert;
-            #if 0 /* Pseudo code: */
+            struct k_Sensor_SM_Evt_Sig_Read * p_convert = &p_evt->data.read;
+    		
+            if (sensor_sample_fetch(dev)) {
+			    printk("sensor_sample fetch failed\n");
+		    }
 
-            #endif
+		    sensor_channel_get(dev, SENSOR_CHAN_LIGHT, &als_ir);
+            sensor_channel_get(dev, SENSOR_CHAN_LIGHT, &als_red);
+            sensor_channel_get(dev, SENSOR_CHAN_LIGHT, &als_green);
+            sensor_channel_get(dev, SENSOR_CHAN_LIGHT, &als_blue);
+
             break;
         #if CONFIG_FKMG_SENSOR_SHUTDOWN_ENABLED
         case k_Sensor_Evt_Sig_Instance_Deinitialized:

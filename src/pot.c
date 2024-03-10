@@ -45,18 +45,11 @@
 
 #define ADC_NODE            DT_NODELABEL(adc1)
 #define ADC_RESOLUTION      12          
-#define ADC_CHANNEL         BIT(7)  // for multiple channels: || BIT(ADC CHANNEL No.)
+#define ADC_CHANNEL         BIT(0) | BIT(1) | BIT(2) | BIT(3) | BIT(4) | BIT(5)
 #define ADC_REFERENCE       ADC_REF_INTERNAL
 #define ADC_GAIN            ADC_GAIN_1
-#define ADC_BUFFER_SIZE     1
+#define ADC_BUFFER_SIZE     6
 
-#define GPIO_PINS           DT_PATH(zephyr_user)
-
-#define GPIOB_PORT          DEVICE_DT_GET(DT_NODELABEL(gpiob))
-#define GPIOC_PORT          DEVICE_DT_GET(DT_NODELABEL(gpioc))
-#define MUX_BANK_MASK       0x01F0 // for GPIO C pins 4 -> 8
-#define MUX_GPIO_OFFSET     4 // we're starting from GPIOC Pin 4 
-#define MUX_ADDR_MASK       0
 /* *****************************************************************************
  * Debugging
  */
@@ -80,59 +73,6 @@ static struct pot_module_data pot_md = {0};
 
 const struct device * adc_dev = DEVICE_DT_GET(ADC_NODE); 
 
-// MUX Address Pins
-const struct gpio_dt_spec adc_address_0 = GPIO_DT_SPEC_GET(GPIO_PINS, adc_addr_0_gpios); 
-const struct gpio_dt_spec adc_address_1 = GPIO_DT_SPEC_GET(GPIO_PINS, adc_addr_1_gpios); 
-const struct gpio_dt_spec adc_address_2 = GPIO_DT_SPEC_GET(GPIO_PINS, adc_addr_2_gpios); 
-
-// MUX Bank Select Pins
-const struct gpio_dt_spec adc_bank_0 = GPIO_DT_SPEC_GET(GPIO_PINS, adc_addr_bank_0_gpios); 
-const struct gpio_dt_spec adc_bank_1 = GPIO_DT_SPEC_GET(GPIO_PINS, adc_addr_bank_1_gpios); 
-const struct gpio_dt_spec adc_bank_2 = GPIO_DT_SPEC_GET(GPIO_PINS, adc_addr_bank_2_gpios); 
-const struct gpio_dt_spec adc_bank_3 = GPIO_DT_SPEC_GET(GPIO_PINS, adc_addr_bank_3_gpios); 
-const struct gpio_dt_spec adc_bank_4 = GPIO_DT_SPEC_GET(GPIO_PINS, adc_addr_bank_4_gpios); 
-
-/* 
- * Functions in sequencer module are dependent on this order for sorting through readings. 
- * Should this order be changed, make sure to account for it in other module receiving pot data. 
-*/
-static const uint8_t POT_ADC_ADDRESS[k_Pot_Id_Cnt] = {
-    21, // VOLT 1 CH 1
-    23, // VOLT 2 CH 1
-    22, // VOLT 3 CH 1
-    20, // VOLT 4 CH 1
-    18, // VOLT 5 CH 1
-    17, // VOLT 6 CH 1
-    16, // VOLT 7 CH 1
-    19, // VOLT 8 CH 1
-    52, // VOLT 1 CH 2
-    54, // VOLT 2 CH 2
-    55, // VOLT 3 CH 2
-    53, // VOLT 4 CH 2
-    51, // VOLT 5 CH 2
-    48, // VOLT 6 CH 2
-    49, // VOLT 7 CH 2
-    50, // VOLT 8 CH 2
-    37, // TIME 1 CH 1
-    39, // TIME 2 CH 1
-    38, // TIME 3 CH 1
-    36, // TIME 4 CH 1
-    34, // TIME 5 CH 1
-    33, // TIME 6 CH 1
-    32, // TIME 7 CH 1
-    35, // TIME 8 CH 1
-    69, // TIME 1 CH 2
-    71, // TIME 2 CH 2
-    70, // TIME 3 CH 2
-    68, // TIME 4 CH 2
-    66, // TIME 5 CH 2
-    65, // TIME 6 CH 2
-    64, // TIME 7 CH 2
-    67, // TIME 8 CH 2
-    7,  // Param 1
-    4,  // Param 2
-    6   // Global 
-};
 
 /* *****************************************************************************
  * Private
@@ -560,22 +500,6 @@ static void init_adc_device (struct Pot_Instance * p_inst) {
 
 }
 
-static void init_adc_gpios(struct Pot_Instance * p_inst) 
-{
-    if (    gpio_pin_configure_dt(&adc_address_0, GPIO_OUTPUT_INACTIVE)  ||
-            gpio_pin_configure_dt(&adc_address_1, GPIO_OUTPUT_INACTIVE)  ||
-            gpio_pin_configure_dt(&adc_address_2, GPIO_OUTPUT_INACTIVE)  ||
-            gpio_pin_configure_dt(&adc_bank_0, GPIO_OUTPUT_INACTIVE)     ||
-            gpio_pin_configure_dt(&adc_bank_1, GPIO_OUTPUT_INACTIVE)     ||
-            gpio_pin_configure_dt(&adc_bank_2, GPIO_OUTPUT_INACTIVE)     ||
-            gpio_pin_configure_dt(&adc_bank_3, GPIO_OUTPUT_INACTIVE)     ||
-            gpio_pin_configure_dt(&adc_bank_4, GPIO_OUTPUT_INACTIVE)
-    ){
-        // printk("ADC GPIO Config: FAILED\n"); 
-    } else {
-        // printk("ADC GPIO Config: PASSED\n"); 
-    }
-}
 
 static uint16_t adc_convert_pot (struct Pot_Instance * p_inst, enum Pot_Id id) 
 {   
@@ -597,56 +521,11 @@ static uint16_t adc_convert_pot (struct Pot_Instance * p_inst, enum Pot_Id id)
     return val; 
 } 
 
-/* 
- * Pot Id is advanced in the argument at call for this fn. We only advance it here while we keep the current Pot Id intact for this cycle.
- * For the adc reading, the pot advancement occurs on timer expiry callback. 
- * POT_ADC_ADDRESS array contains all the information we need to set our muxes. First three bits (from LSB) tell us address pins to set on mux
- * while the second nybble tells us which mux to enable.
- * As it stands, Mux Address pins are on port B pins 0,1,2. Since these correspond directly to the bits of potAddress we're interested in, 
- * we can mask the rest of those bits and use this as our value. However, this step doesn't lend itself to a generic implementation as the
- * gpio_port_set_masked_raw function needs all pins to be on the same port. 
- */
-
-static void advance_adc_mux (enum Pot_Id id) 
-{
-
-    uint8_t potAddress = POT_ADC_ADDRESS[id];
-    uint32_t addressBits = potAddress & 0x07;
-    uint32_t mask_val = 0;
-
-    if (gpio_port_set_masked_raw(GPIOC_PORT, MUX_BANK_MASK, 0x0000)) {
-        printk("Error Setting Mux Banks Low\n"); 
-    }
-
-    if (gpio_port_set_masked_raw(GPIOB_PORT, MUX_ADDR_MASK, addressBits & MUX_ADDR_MASK)) {
-         printk("Error Setting Mux Address Pins\n"); 
-    }
-
-    mask_val = (1U << ((potAddress >> 4) + MUX_GPIO_OFFSET)); 
-          
-    if (gpio_port_set_masked_raw(GPIOC_PORT, MUX_BANK_MASK, mask_val)) {
-        printk("Error Setting Mux Bank High\n"); 
-    } 
-};
-
 
 
 static uint16_t adc_filter_pot (struct Pot_Instance * p_inst, enum Pot_Id id, uint16_t val)
 {
-
-    #define a0 0.5
-    #define a1 0.5
-    #define b1 0.2
-
-    float input = (float)val / 4095;
-    static float past_input[k_Pot_Id_Cnt] = {0.00}, past_output[k_Pot_Id_Cnt] = {0.00}; 
-    float output = a0 * input + a1 * past_input[id] - b1 * past_output[id]; 
-
-    past_input[id] = input; 
-    past_output[id] = output; 
-
-    uint16_t test = output * 4095; 
-    return test; 
+    return val; 
 };
 
 
@@ -781,8 +660,6 @@ static void state_run_run(void * o)
             struct Pot_SM_Evt_Sig_Convert * p_convert = &p_evt->data.convert;
 
             uint16_t val = adc_convert_pot(&p_inst, p_convert->id);
-            
-            advance_adc_mux(next_pot(p_convert->id)); 
             
             uint16_t filtered_reading = adc_filter_pot(p_inst, p_convert->id, val);  
 
@@ -921,7 +798,6 @@ void Pot_Init_Instance(struct Pot_Instance_Cfg * p_cfg)
     }
     #endif
 
-    init_adc_gpios(p_inst);
     init_adc_device(p_inst);
 
     init_module();

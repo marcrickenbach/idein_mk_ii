@@ -68,6 +68,11 @@ struct Sensor_Instance{
         sys_snode_t instance;
     }node;
 
+    /* Timers used. */
+    struct{
+        struct k_timer sensor;
+    }timer;
+
     /* Current Channel. */
     enum Sensor_Id id;
 };

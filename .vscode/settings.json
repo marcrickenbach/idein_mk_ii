@@ -1,6 +1,8 @@
 {
     "files.associations": {
         "counter.h": "c",
-        "kernel.h": "c"
+        "kernel.h": "c",
+        "midi.h": "c",
+        "evt.h": "c"
     }
 }

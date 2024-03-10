@@ -32,8 +32,8 @@
 #include "dac.h"
 #include "dac/evt.h"
 
-#include "uart.h"
-#include "uart/evt.h"
+#include "midi.h"
+#include "midi/evt.h"
 
 /* *****************************************************************************
  * Constants, Defines, and Macros
@@ -47,13 +47,6 @@
 
 #define TIMER_X             DT_INST(0, st_stm32_counter) 
 #define TIMER_Y             DT_INST(1, st_stm32_counter)
-
-// Gate Outs
-#define GATE_PINS           DT_PATH(zephyr_user)
-#define NUMBER_OF_GATES     2
-
-// Interrupt Pins for Transport
-#define TRANSPORT_PINS      DT_PATH(zephyr_user)
 
 
 /* *****************************************************************************
@@ -84,15 +77,7 @@ static struct idein_module_data idein_md = {0};
  * Device Structs
  */
 
-const struct gpio_dt_spec gates[NUMBER_OF_GATES] = {
-    GPIO_DT_SPEC_GET(GATE_PINS, gate_high_gpios), // Gate 0
-    GPIO_DT_SPEC_GET(GATE_PINS, gate_low_gpios)   // Gate 1
-};
 
-const struct gpio_dt_spec playPauseA    = GPIO_DT_SPEC_GET(TRANSPORT_PINS, pp_trigger_high_gpios); 
-const struct gpio_dt_spec playPauseB    = GPIO_DT_SPEC_GET(TRANSPORT_PINS, pp_trigger_low_gpios); 
-const struct gpio_dt_spec resetA        = GPIO_DT_SPEC_GET(TRANSPORT_PINS, rst_trigger_high_gpios);
-const struct gpio_dt_spec resetB        = GPIO_DT_SPEC_GET(TRANSPORT_PINS, rst_trigger_low_gpios); 
 
 
 /* *****************************************************************************
@@ -288,73 +273,7 @@ static void init_hardware_timers(struct Idein_Instance * p_inst,
 
 }
 
-// static void on_transportA(const struct device *dev, struct gpio_callback *cb, uint32_t pins);
-// static void on_transportB(const struct device *dev, struct gpio_callback *cb, uint32_t pins);
 
-static void transport_gpio_pin_config(void) {
-    // gpio_pin_configure_dt(&playPauseA, GPIO_INPUT);
-    // gpio_pin_configure_dt(&playPauseB, GPIO_INPUT);
-    // gpio_pin_configure_dt(&resetA, GPIO_INPUT);
-    // gpio_pin_configure_dt(&resetB, GPIO_INPUT); 
-}
-
-
-static void transport_gpio_interrupt_config(void) {
-    // gpio_pin_interrupt_configure_dt(&playPauseA, GPIO_INT_EDGE_BOTH);
-    // gpio_pin_interrupt_configure_dt(&playPauseB, GPIO_INT_EDGE_BOTH);
-    // gpio_pin_interrupt_configure_dt(&resetA, GPIO_INT_EDGE_BOTH);
-    // gpio_pin_interrupt_configure_dt(&resetB, GPIO_INT_EDGE_BOTH);
-}
-
-
-static void transport_gpio_callback_config(struct Idein_Instance * p_inst) {
-    // gpio_init_callback(&p_inst->transport_gpio_cb, on_transportA, BIT(playPauseA.pin));
-    // gpio_init_callback(&p_inst->transport_gpio_cb, on_transportA, BIT(resetA.pin));
-    // gpio_init_callback(&p_inst->transport_gpio_cb, on_transportB, BIT(playPauseB.pin));
-    // gpio_init_callback(&p_inst->transport_gpio_cb, on_transportB, BIT(resetB.pin));
-
-    // gpio_add_callback(playPauseA.port, &p_inst->transport_gpio_cb);
-    // gpio_add_callback(resetA.port, &p_inst->transport_gpio_cb);
-    // gpio_add_callback(playPauseB.port, &p_inst->transport_gpio_cb);
-    // gpio_add_callback(resetB.port, &p_inst->transport_gpio_cb);
-}
-
-
-static void transport_gpio_init(struct Idein_Instance * p_inst) {
-
-    int ret = 0; 
-
-    if (!device_is_ready(playPauseA.port) ||
-        !device_is_ready(playPauseB.port) ||
-        !device_is_ready(resetA.port) ||
-        !device_is_ready(resetB.port)) 
-    {
-        ret = 1;
-    }
-
-    assert(ret == 0);
-
-    transport_gpio_pin_config();
-    transport_gpio_interrupt_config();
-    transport_gpio_callback_config(p_inst);
-
-}
-
-static void init_gate_gpios(struct Idein_Instance * p_inst) 
-{
-    for (int i = 0; i < NUMBER_OF_GATES; i++) {
-        if (!device_is_ready(gates[i].port)) {
-            printk("GATE %d Init : FAILED.\n", i);
-        } else {
-            printk("GATE %d Init : PASSED.\n", i);
-            if (gpio_pin_configure_dt(&gates[i], GPIO_OUTPUT_INACTIVE)) {
-                printk("GATE %d Config : FAILED.\n", i);
-            } else {
-                printk("GATE %d Config : PASSED.\n", i);
-            }
-        }
-    }
-}
 
 
 
@@ -362,9 +281,7 @@ static void config_instance_deferred(
         struct Idein_Instance     * p_inst,
         struct Idein_Instance_Cfg * p_cfg)
 {
-    // transport_gpio_init(p_inst); 
-    // init_hardware_timers(p_inst, p_cfg);
-    // init_gate_gpios(p_inst);
+
 }
 
 
@@ -511,19 +428,6 @@ static void broadcast_interface_deinitialized(
 }
 #endif
 
-static void broadcast_led_driver_write_ready(
-        struct Idein_Instance * p_inst,
-        enum Idein_Id           id,
-        uint16_t              val)
-{
-    struct Idein_Evt evt = {
-            .sig = k_Idein_Evt_Sig_LED_Write_Ready,
-            .data.led_write.id = id,
-            .data.led_write.val = val
-    };
-
-    broadcast_event_to_listeners(p_inst, &evt);
-}
 
 /* **************
  * Listener Utils
