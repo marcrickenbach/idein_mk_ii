@@ -1,13 +1,13 @@
 /*******************************************************************************
- * @brief DAC Thread.
+ * @brief Codec Thread.
  *
- * This module is the public api to interface with the dac. 
+ * This module is the public api to interface with the Codec. 
  *
  * @example
  */
 
-#ifndef FKMG_DAC_H
-#define FKMG_DAC_H
+#ifndef FKMG_CODEC_H
+#define FKMG_CODEC_H
 
 /* In case C++ needs to use anything here */
 #ifdef __cplusplus
@@ -20,10 +20,10 @@ extern “C” {
 
 #include <zephyr/kernel.h>
 
-#include "dac/instance.h"
-#include "dac/instance_cfg.h"
-#include "dac/listener.h"
-#include "dac/listener_cfg.h"
+#include "codec/instance.h"
+#include "codec/instance_cfg.h"
+#include "codec/listener.h"
+#include "codec/listener_cfg.h"
 
 /* *****************************************************************************
  * Public
@@ -40,17 +40,17 @@ extern “C” {
  * @param[in] p_cfg Pointer to the filled-in configuration struct. See the
  * struct for details.
  */
-void DAC_Init_Instance(struct DAC_Instance_Cfg * p_cfg);
+void Codec_Init_Instance(struct Codec_Instance_Cfg * p_cfg);
 
-void dac_write_new_value(uint8_t ch, uint32_t val); 
+void codec_write_new_value(uint8_t ch, uint32_t val); 
 
 /**
  * Deinitialize an instance.
  * @param[in] p_dcfg Pointer to the filled-in deconfiguration struct. See the
  * struct for details.
  */
-#if CONFIG_FKMG_DAC_ALLOW_SHUTDOWN
-void DAC_Deinit_Instance(struct DAC_Instance_Dcfg * p_dcfg);
+#if CONFIG_FKMG_CODEC_ALLOW_SHUTDOWN
+void Codec_Deinit_Instance(struct Codec_Instance_Dcfg * p_dcfg);
 #endif
 
 /**
@@ -58,10 +58,10 @@ void DAC_Deinit_Instance(struct DAC_Instance_Dcfg * p_dcfg);
  * @param[in] p_cfg Pointer to the filled-in configuration struct. See the
  * struct for details.
  */
-void DAC_Add_Listener(struct DAC_Listener_Cfg * p_cfg);
+void Codec_Add_Listener(struct Codec_Listener_Cfg * p_cfg);
 
-#if CONFIG_FKMG_DAC_ALLOW_LISTENER_REMOVAL
-void DAC_Remove_Listener(struct DAC_Listener * p_lsnr);
+#if CONFIG_FKMG_CODEC_ALLOW_LISTENER_REMOVAL
+void Codec_Remove_Listener(struct Codec_Listener * p_lsnr);
 #endif
 
 /* Public API functions to consider:
@@ -71,4 +71,4 @@ void DAC_Remove_Listener(struct DAC_Listener * p_lsnr);
 }
 #endif
 
-#endif /* FKMG_DAC_H */
+#endif /* FKMG_CODEC_H */

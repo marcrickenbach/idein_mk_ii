@@ -1,11 +1,11 @@
 /*******************************************************************************
- * @brief DAC module data interface.
+ * @brief Codec module data interface.
  *
  * This is the private module data.
  */
 
-#ifndef FKMG_DAC_MODULE_DATA_H
-#define FKMG_DAC_MODULE_DATA_H
+#ifndef FKMG_CODEC_MODULE_DATA_H
+#define FKMG_CODEC_MODULE_DATA_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -25,7 +25,7 @@ extern "C" {
  * Structs
  */
 
-struct dac_module_data{
+struct codec_module_data{
     bool initialized;
 
     /* Singly linked lists to keep track of things. */
@@ -38,4 +38,4 @@ struct dac_module_data{
 }
 #endif
 
-#endif /* FKMG_DAC_MODULE_DATA_H */
+#endif /* FKMG_CODEC_MODULE_DATA_H */

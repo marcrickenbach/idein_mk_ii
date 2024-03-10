@@ -1,9 +1,9 @@
 /** ****************************************************************************
- * @brief DAC listener configuration interface.
+ * @brief Codec listener configuration interface.
  */
 
-#ifndef FKMG_DAC_LISTENER_CB_CFG_H
-#define FKMG_DAC_LISTENER_CB_CFG_H
+#ifndef FKMG_CODEC_LISTENER_CB_CFG_H
+#define FKMG_CODEC_LISTENER_CB_CFG_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,25 +24,25 @@ extern "C" {
 
 /* Forward references to prevent include interdependent items getting declared
  * out-of-order. */
-struct DAC_Instance;
-struct DAC_Listener;
+struct Codec_Instance;
+struct Codec_Listener;
 
-struct DAC_Listener_Cfg{
+struct Codec_Listener_Cfg{
     /* Required: pointer to initialized opaque instace we'll add listener to. */
-    struct DAC_Instance * p_inst;
+    struct Codec_Instance * p_inst;
 
     /* Required: pointer to uninitialized/unused opaque listener to config. */
-    struct DAC_Listener * p_lsnr;
+    struct Codec_Listener * p_lsnr;
 
     /* Required: event signal to listen for. */
-    enum DAC_Evt_Sig sig;
+    enum Codec_Evt_Sig sig;
 
     /* Required: function to call back and send event to when signal occurs. */
-    DAC_Listener_Cb cb;
+    Codec_Listener_Cb cb;
 };
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* FKMG_DAC_LISTENER_CB_CFG_H */
+#endif /* FKMG_CODEC_LISTENER_CB_CFG_H */

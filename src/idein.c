@@ -29,8 +29,8 @@
 #include "pot.h"
 #include "pot/evt.h"
 
-#include "dac.h"
-#include "dac/evt.h"
+#include "codec.h"
+#include "codec/evt.h"
 
 #include "midi.h"
 #include "midi/evt.h"

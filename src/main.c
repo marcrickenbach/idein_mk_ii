@@ -14,8 +14,8 @@
 
 #include "main.h"
 
-#include "dac.h"
-#include "dac/private/sm_evt.h"
+#include "codec.h"
+#include "codec/private/sm_evt.h"
 
 #include "pot.h"
 #include "pot/id.h"
@@ -56,15 +56,15 @@ K_MSGQ_DEFINE(pot_sm_evt_q, sizeof(struct Pot_SM_Evt),
         MAX_QUEUED_POT_SM_EVTS, POT_SM_QUEUE_ALIGNMENT);
 static struct Pot_Instance pot_inst;
 
-/* Declare threads, queues, and other data structures for DAC instance. */
-static struct k_thread dac_thread;
-#define DAC_THREAD_STACK_SZ_BYTES   512
-K_THREAD_STACK_DEFINE(dac_thread_stack, DAC_THREAD_STACK_SZ_BYTES);
-#define MAX_QUEUED_DAC_SM_EVTS  10
-#define DAC_SM_QUEUE_ALIGNMENT  4
-K_MSGQ_DEFINE(dac_sm_evt_q, sizeof(struct DAC_SM_Evt),
-        MAX_QUEUED_DAC_SM_EVTS, DAC_SM_QUEUE_ALIGNMENT);
-static struct DAC_Instance dac_inst;
+/* Declare threads, queues, and other data structures for Codec instance. */
+static struct k_thread codec_thread;
+#define CODEC_THREAD_STACK_SZ_BYTES   512
+K_THREAD_STACK_DEFINE(codec_thread_stack, CODEC_THREAD_STACK_SZ_BYTES);
+#define MAX_QUEUED_CODEC_SM_EVTS  10
+#define CODEC_SM_QUEUE_ALIGNMENT  4
+K_MSGQ_DEFINE(codec_sm_evt_q, sizeof(struct Codec_SM_Evt),
+        MAX_QUEUED_CODEC_SM_EVTS, CODEC_SM_QUEUE_ALIGNMENT);
+static struct Codec_Instance codec_inst;
 
 /* Declare threads, queues, and other data structures for Idein instance. */
 static struct k_thread idein_thread;
@@ -143,10 +143,10 @@ static void on_pot_instance_initialized(struct Pot_Evt *p_evt)
 	k_event_post(&events, EVT_FLAG_INSTANCE_INITIALIZED);
 }
 
-static void on_dac_instance_initialized(struct DAC_Evt *p_evt)
+static void on_codec_instance_initialized(struct Codec_Evt *p_evt)
 {
-    assert(p_evt->sig == k_DAC_Evt_Sig_Instance_Initialized);
-    assert(p_evt->data.initd.p_inst == &dac_inst);
+    assert(p_evt->sig == k_Codec_Evt_Sig_Instance_Initialized);
+    assert(p_evt->data.initd.p_inst == &codec_inst);
 	k_event_post(&events, EVT_FLAG_INSTANCE_INITIALIZED);
 }
 
@@ -258,17 +258,17 @@ static void on_sensor_read(struct Sensor_Evt *p_evt)
     Pot_Add_Listener(&pot_lsnr_cfg);
 
 
-    /* Instance: DAC */
-    struct DAC_Instance_Cfg dac_inst_cfg = {
-        .p_inst = &dac_inst,
-        .task.sm.p_thread = &dac_thread,
-        .task.sm.p_stack = dac_thread_stack,
-        .task.sm.stack_sz = K_THREAD_STACK_SIZEOF(dac_thread_stack),
+    /* Instance: Codec */
+    struct Codec_Instance_Cfg codec_inst_cfg = {
+        .p_inst = &codec_inst,
+        .task.sm.p_thread = &codec_thread,
+        .task.sm.p_stack = codec_thread_stack,
+        .task.sm.stack_sz = K_THREAD_STACK_SIZEOF(codec_thread_stack),
         .task.sm.prio = K_LOWEST_APPLICATION_THREAD_PRIO,
-        .msgq.p_sm_evts = &dac_sm_evt_q,
-        .cb = on_dac_instance_initialized,
+        .msgq.p_sm_evts = &codec_sm_evt_q,
+        .cb = on_codec_instance_initialized,
     };
-    DAC_Init_Instance(&dac_inst_cfg);
+    Codec_Init_Instance(&codec_inst_cfg);
     wait_on_instance_initialized();
 
 

@@ -1,9 +1,9 @@
 /** ****************************************************************************
- * @brief DAC instance configuration interface.
+ * @brief Codec instance configuration interface.
  */
 
-#ifndef FKMG_DAC_INSTANCE_CFG_H
-#define FKMG_DAC_INSTANCE_CFG_H
+#ifndef FKMG_CODEC_INSTANCE_CFG_H
+#define FKMG_CODEC_INSTANCE_CFG_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,13 +27,13 @@ extern "C" {
 
 /* Forward references to prevent include interdependent items getting declared
  * out-of-order. */
-struct DAC_Instance;
+struct Codec_Instance;
 
 /* Everything needed to configure an instance. */
-struct DAC_Instance_Cfg{
+struct Codec_Instance_Cfg{
     /* Required: pointer to opaque instance to config. Lifetime of instance: as
      * long as in use, which is likely lifetime of system uptime. */
-    struct DAC_Instance * p_inst;
+    struct Codec_Instance * p_inst;
 
     /* Required: the implementation consists of 1 thread: the main state
      * machine, which handles operational states such as disconnected/connected,
@@ -56,7 +56,7 @@ struct DAC_Instance_Cfg{
         }sm /* state machine */;
     }task;
 
-    /* Required: for queuing state machine events (DAC_SM_Evt). */
+    /* Required: for queuing state machine events (Codec_SM_Evt). */
     struct{
         /* State machine event message queue. */
         struct k_msgq * p_sm_evts;
@@ -64,13 +64,13 @@ struct DAC_Instance_Cfg{
  
  
     /* Optional: asynchronous callback to call after interface initialized. The
-     * callback is sent event with signal k_DAC_Sig_Instance_Initialized. NULL
+     * callback is sent event with signal k_Codec_Sig_Instance_Initialized. NULL
      * skips callback. */
-    DAC_Listener_Cb cb;
+    Codec_Listener_Cb cb;
 };
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* FKMG_DAC_INSTANCE_CFG_H */
+#endif /* FKMG_CODEC_INSTANCE_CFG_H */

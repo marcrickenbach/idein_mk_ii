@@ -13,7 +13,7 @@ project(idein_mk_ii)
 
 # Explicitly list source files
 set(app_sources
-    src/dac.c
+    src/codec.c
     src/main.c
     src/midi.c
     src/sensor.c

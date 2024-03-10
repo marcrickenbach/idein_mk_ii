@@ -1,5 +1,5 @@
 /** ****************************************************************************
- * @brief DAC instance interface.
+ * @brief Codec instance interface.
  *
  * An instance is the root instantiation of the implementation. An instance
  * contains everything required to declare and define all the threads, queues,
@@ -7,8 +7,8 @@
  * only one is required or even possible.
  */
 
-#ifndef FKMG_DAC_INSTANCE_H
-#define FKMG_DAC_INSTANCE_H
+#ifndef FKMG_CODEC_INSTANCE_H
+#define FKMG_CODEC_INSTANCE_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,10 +33,10 @@ extern "C" {
  * Instance
  */
 
-struct DAC_Instance{
-    #if CONFIG_FKMG_DAC_RUNTIME_ERROR_CHECKING
+struct Codec_Instance{
+    #if CONFIG_FKMG_CODEC_RUNTIME_ERROR_CHECKING
     /* Error status. */
-	enum DAC_Err_Id err;
+	enum Codec_Err_Id err;
     #endif
 
     /* Threads used. */
@@ -56,11 +56,11 @@ struct DAC_Instance{
 	struct smf_ctx sm;
 
     /* Current sm event. */
-    struct DAC_SM_Evt sm_evt;
+    struct Codec_SM_Evt sm_evt;
 
     /* Singly linked lists to keep track of things. */
     struct{
-        sys_slist_t listeners[k_DAC_Evt_Sig_Cnt];
+        sys_slist_t listeners[k_Codec_Evt_Sig_Cnt];
     }list;
 
     /* For adding this instance to singly linked lists. */
@@ -69,11 +69,11 @@ struct DAC_Instance{
     }node;
 
     /* Current Channel. */
-    enum DAC_Id id;
+    enum Codec_Id id;
 };
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* FKMG_DAC_INSTANCE_H */
+#endif /* FKMG_CODEC_INSTANCE_H */
