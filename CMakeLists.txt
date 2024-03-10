@@ -19,6 +19,7 @@ set(app_sources
     src/sensor.c
     src/idein.c
     src/pot.c
+    src/voice.c
 
     # Add other source files here
 )

@@ -30,6 +30,8 @@
 #include "sensor.h"
 #include "sensor/private/sm_evt.h"
 
+#include "voice.h"
+#include "voice/private/sm_evt.h"
 
 
 /* *****************************************************************************
@@ -85,6 +87,15 @@ K_MSGQ_DEFINE(midi_sm_evt_q, sizeof(struct MIDI_SM_Evt),
         MAX_QUEUED_MIDI_SM_EVTS, MIDI_SM_QUEUE_ALIGNMENT);
 static struct MIDI_Instance midi_inst;
 
+/* Declare threads, queues, and other data structures for Voice / Voice instance. */
+static struct k_thread voice_thread;
+#define VOICE_THREAD_STACK_SZ_BYTES   512
+K_THREAD_STACK_DEFINE(voice_thread_stack, VOICE_THREAD_STACK_SZ_BYTES);
+#define MAX_QUEUED_VOICE_SM_EVTS  10
+#define VOICE_SM_QUEUE_ALIGNMENT  4
+K_MSGQ_DEFINE(voice_sm_evt_q, sizeof(struct Voice_SM_Evt),
+        MAX_QUEUED_VOICE_SM_EVTS, VOICE_SM_QUEUE_ALIGNMENT);
+static struct Voice_Instance voice_inst;
 
 /* Declare threads, queues, and other data structures for Sensor instance. */
 static struct k_thread sensor_thread;
@@ -153,10 +164,17 @@ static void on_midi_instance_initialized(struct MIDI_Evt *p_evt)
 	k_event_post(&events, EVT_FLAG_INSTANCE_INITIALIZED);
 }
 
-static void on_sensor_instance_initialized(struct MIDI_Evt *p_evt)
+static void on_sensor_instance_initialized(struct Sensor_Evt *p_evt)
 {
     assert(p_evt->sig == k_Sensor_Evt_Sig_Instance_Initialized);
     assert(p_evt->data.initd.p_inst == &sensor_inst);
+	k_event_post(&events, EVT_FLAG_INSTANCE_INITIALIZED);
+}
+
+static void on_voice_instance_initialized(struct Voice_Evt *p_evt)
+{
+    assert(p_evt->sig == k_Voice_Evt_Sig_Instance_Initialized);
+    assert(p_evt->data.initd.p_inst == &voice_inst);
 	k_event_post(&events, EVT_FLAG_INSTANCE_INITIALIZED);
 }
 
@@ -199,24 +217,6 @@ static void on_pot_changed(struct Pot_Evt *p_evt)
     }
 }
 
-
-/* ********************
- * ON MIDI READY TO WRITE CHANGE
- * ********************/
-
-static void on_midi_write_ready(struct MIDI_Evt *p_evt) 
-{
-    assert(p_evt->sig == k_MIDI_Evt_Sig_Write_Ready);
-
-    struct MIDI_SM_Evt_Sig_Write_MIDI * p_write = (struct MIDI_SM_Evt_Sig_Write_MIDI *) &p_evt->data.midi_write; 
-
-    struct MIDI_SM_Evt evt = {
-            .sig = k_MIDI_SM_Evt_Sig_Write_MIDI,
-            .data.midi_write = *p_write
-    };
-
-    k_msgq_put(&midi_sm_evt_q, &evt, K_NO_WAIT); 
-}
 
 
 /* ********************
@@ -310,6 +310,18 @@ static void on_sensor_read(struct Sensor_Evt *p_evt)
     };
     Sensor_Add_Listener(&sensor_read_lsnr_cfg);
 
+    /* Instance: Voice Engine */
+    struct Voice_Instance_Cfg voice_inst_cfg = {
+        .p_inst = &voice_inst,
+        .task.sm.p_thread = &voice_thread,
+        .task.sm.p_stack = voice_thread_stack,
+        .task.sm.stack_sz = K_THREAD_STACK_SIZEOF(voice_thread_stack),
+        .task.sm.prio = K_LOWEST_APPLICATION_THREAD_PRIO,
+        .msgq.p_sm_evts = &voice_sm_evt_q,
+        .cb = on_voice_instance_initialized,
+    };
+    Voice_Init_Instance(&voice_inst_cfg);
+    wait_on_instance_initialized();
 
 
     /* Instance: Idein */
@@ -325,15 +337,6 @@ static void on_sensor_read(struct Sensor_Evt *p_evt)
     Idein_Init_Instance(&idein_inst_cfg);
     wait_on_instance_initialized();
     
-
-    static struct Idein_Listener midi_write_lsnr;
-    struct Idein_Listener_Cfg midi_write_lsnr_cfg = {
-        .p_inst = &idein_inst,
-        .p_lsnr = &midi_write_lsnr, 
-        .sig     = k_MIDI_Evt_Sig_Write_Ready,
-        .cb      = on_midi_write_ready
-    };
-    Idein_Add_Listener(&midi_write_lsnr_cfg);
 
     return 0;
 
