@@ -11,27 +11,33 @@
 /{
     zephyr,user {
 
-        led-1-gpios         =   <&gpioa 8 GPIO_ACTIVE_HIGH>;
-        led-2-gpios         =   <&gpioc 5 GPIO_ACTIVE_HIGH>;
-        led-3-gpios         =   <&gpioc 4 GPIO_ACTIVE_HIGH>;
-        led-4-gpios         =   <&gpioa 7 GPIO_ACTIVE_HIGH>;
-        led-5-gpios         =   <&gpioa 6 GPIO_ACTIVE_HIGH>;
-        led-mode_r-gpios    =   <&gpioc 14 GPIO_ACTIVE_HIGH>;
-        led-mode_g-gpios    =   <&gpioc 15 GPIO_ACTIVE_HIGH>;
-
-        int-clk-out-gpios   =   <&gpiob 0 GPIO_ACTIVE_HIGH>;
+        led-0-gpios         =   <&gpioa 15 GPIO_ACTIVE_HIGH>;
+        led-1-gpios         =   <&gpioc 11 GPIO_ACTIVE_HIGH>;
+        led-2-gpios         =   <&gpioc 12 GPIO_ACTIVE_HIGH>;
+        led-3-gpios         =   <&gpiod 2 GPIO_ACTIVE_HIGH>;
+        led-4-gpios         =   <&gpiob 3 GPIO_ACTIVE_HIGH>;
+        led-modered-gpios    =   <&gpioc 14 GPIO_ACTIVE_HIGH>;
+        led-modegreen-gpios    =   <&gpioc 15 GPIO_ACTIVE_HIGH>;
+        enc-led-1-gpios     =   <&gpiob 0 GPIO_ACTIVE_HIGH>;
+        enc-led-2-gpios     =   <&gpiob 9 GPIO_ACTIVE_HIGH>;
         
         btn0-gpios          =   <&gpioc 13 GPIO_PULL_DOWN>;
-        btn1-gpios          =   <&gpioc 7 GPIO_PULL_DOWN>;
+        btn1-gpios          =   <&gpiob 13 GPIO_PULL_DOWN>;
         btn2-gpios          =   <&gpiob 14 GPIO_PULL_DOWN>;
-        btn3-gpios          =   <&gpiob 13 GPIO_PULL_DOWN>;
-        btn4-gpios          =   <&gpioc 4 GPIO_PULL_DOWN>;
-        btnMode-gpios       =   <&gpioc 0 GPIO_PULL_DOWN>;
+        btn3-gpios          =   <&gpioc 7 GPIO_PULL_DOWN>;
+        btn4-gpios          =   <&gpioc 8 GPIO_PULL_DOWN>;
+        btn5-gpios          =   <&gpioc 9 GPIO_PULL_DOWN>;
+        mode-gpios       =   <&gpiob 2 GPIO_PULL_DOWN>;
 
-        ext-clk-in-gpios    =   <&gpiob 1 GPIO_PULL_DOWN>;
+        int-clk-out-gpios   =   <&gpiob 4 GPIO_ACTIVE_HIGH>;
+        ext-clk-in-gpios    =   <&gpiob 5 GPIO_PULL_DOWN>;
 
+        eeprom-clk-gpios    =   <&gpioc 4 GPIO_ACTIVE_LOW>;
+
+        on-off-mcu-gpios    =   <&gpioc 0 GPIO_ACTIVE_HIGH>;
+        op-coll-mcu-gpios   =   <&gpioc 2 GPIO_ACTIVE_HIGH>;
     };
-
+ 
 };
 
 /**************************************** 
@@ -47,6 +53,9 @@
 
 /**************************************/
 
+
+
+
 &clk_hse {
 	/delete-property/ hse-bypass;
 };
@@ -60,6 +69,7 @@
 	status = "okay";
 };
 
+
 &rcc {
 	clocks = <&pll>;
 	clock-frequency = <DT_FREQ_M(180)>;
@@ -70,7 +80,13 @@
 
 
 &adc1 {
-    pinctrl-0 = <&adc1_in0_pa0 &adc1_in1_pa1 &adc1_in2_pa2 &adc1_in3_pa3 &adc1_in4_pa4 &adc1_in5_pa5 >;  
+    pinctrl-0 = <
+        &adc1_in2_pa2
+        &adc1_in3_pa3 
+        &adc1_in4_pa4 
+        &adc1_in15_pc5
+        &adc1_in9_pb1 
+    >;  
     pinctrl-names = "default";
     st,adc-prescaler = <2>;
     status = "okay";
@@ -80,7 +96,7 @@
 &dac1 {
     pinctrl-0 = <&dac_out1_pa4 &dac_out2_pa5>;  
     pinctrl-names = "default";
-    status = "okay";  
+    status = "disabled";  
 };
 
 
@@ -92,19 +108,15 @@
     status = "disabled";
 };
 
+
 &spi1 {
-    status = "disabled";
-};
-
-
-&spi2 {
     // compatible = "st,stm32-spi";
     status = "okay"; 
-    cs-gpios = < &gpiob 12 GPIO_ACTIVE_LOW >;
-    pinctrl-0 = <&spi2_mosi_pb15 &spi2_nss_pb12 &spi2_sck_pb13>;
+    cs-gpios = < &gpioc 4 GPIO_ACTIVE_LOW >;
+    pinctrl-0 = <&spi1_mosi_pa7 &spi1_miso_pa6 &spi1_sck_pa5>;
     pinctrl-names = "default";
     clock-frequency = <5625000>;
-    label = "SPI2";
+    label = "SPI1";
     spidev: spi-dev@0 {
         compatible = "zephyr,spi-dev";
         reg = <0>;
@@ -127,12 +139,20 @@
 
 &i2s2 {
     status = "okay";
-    pinctrl-0 = <&i2s2_ck_pb10 &i2s2_mck_pc6 &i2s2_sd_pb15 &i2s2_ws_pb12 >;
+    pinctrl-0 = <
+        &i2s2_ck_pb10 
+        &i2s2_mck_pc6 
+        &i2s2_sd_pb15 
+        &i2s2_ws_pb12 
+    >;
     pinctrl-names = "default";
 };
 
 &usbotg_fs {
-    pinctrl-0 = <&usb_otg_fs_dm_pa11 &usb_otg_fs_dp_pa12>;
+    pinctrl-0 = <
+        &usb_otg_fs_dm_pa11 
+        &usb_otg_fs_dp_pa12
+    >;
     pinctrl-names = "default";
     status = "okay"; 
 };
@@ -145,6 +165,11 @@
     pinctrl-names = "default";
     current-speed = <31250>;
     status = "okay"; 
+};
+
+&dma1 {
+    compatible = "st,stm32-dma-v1";
+    status="okay";
 };
 
 
