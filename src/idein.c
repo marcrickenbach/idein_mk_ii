@@ -1,9 +1,11 @@
 /* *****************************************************************************
  * @brief Idein implementation.
+ * Oversees the operation of the entire application. 
  */
 
 /* *****************************************************************************
  * TODO
+ * 
  */
 
 /* *****************************************************************************
@@ -48,6 +50,11 @@
 #define TIMER_X             DT_INST(0, st_stm32_counter) 
 #define TIMER_Y             DT_INST(1, st_stm32_counter)
 
+#define RED_POT         0
+#define GREEN_POT       1
+#define BLUE_POT        2
+#define IR_POT          3
+#define VOL_POT         4
 
 /* *****************************************************************************
  * Debugging
@@ -105,32 +112,6 @@ static struct Idein_Instance * sm_ctx_to_instance(struct smf_ctx * p_sm_ctx)
     }
     return(NULL);
 }
-
-
-
-
-static void reset_timer(struct Idein_Instance * p_inst, 
-                        enum Idein_Id id, 
-                        int tix)
-{
-
-    struct counter_alarm_cfg timer_cfg = {
-        .flags = 0,
-        .ticks = tix,
-        .callback = p_inst->tim_cb[id],
-        .user_data = p_inst
-    }; 
-    if (counter_set_channel_alarm(p_inst->timer.t[id], 0, &timer_cfg)) {
-        // LOG_ERR("Error: Failed to set Timer Y"); 
-    };  
-}
-
-/* 
- * Most work here only gets done on a rising edge, i.e. the on part of the gate. 
- * The on-time is calculated as half the time delay between when this rising edge hits and the next gate. 
- * The delay_buffer variable in the instance is to keep track of this delay so we only have to calculate it once,
- * unless one of an active channel's pots sends a pot_change event, in which case we will recalculate the new delay time. 
-*/ 
 
 
 
@@ -217,33 +198,25 @@ static void config_instance_queues(
 static void timer_x_callback (const struct device *timer_dev,
                               uint8_t chan_id, uint32_t ticks,
                               void *user_data); 
-static void timer_y_callback (const struct device *timer_dev,
-                              uint8_t chan_id, uint32_t ticks,
-                              void *user_data); 
 
 /* Set up hardware timers for main sequencers. */
 static void init_hardware_timers(struct Idein_Instance * p_inst,
                                  struct Idein_Instance_Cfg * p_cfg)
 {
     p_inst->timer.t[0] = DEVICE_DT_GET(TIMER_X);
-    p_inst->timer.t[1] = DEVICE_DT_GET(TIMER_Y);
 
-    counter_alarm_callback_t cb_cfg[2] = {
+    counter_alarm_callback_t cb_cfg[1] = {
         timer_x_callback,
-        timer_y_callback
     }; 
 
-    for (int i = 0; i < 2; i++) {
-        p_inst->tim_cb[i] = cb_cfg[i]; 
-    }
+    p_inst->tim_cb[0] = cb_cfg[0];
 
-    if (!device_is_ready(p_inst->timer.t[0]) ||
-        !device_is_ready(p_inst->timer.t[1])) 
+    if (!device_is_ready(p_inst->timer.t[0])) 
     {
-        printk("Timers Config: FAILED.\n");
+        printk("Timer Config: FAILED.\n");
         return;
     } else {
-        printk("Timers Config: PASSED\n");
+        printk("Timer Config: PASSED\n");
     }
     
 
@@ -253,20 +226,9 @@ static void init_hardware_timers(struct Idein_Instance * p_inst,
         .callback = p_inst->tim_cb[0],
         .user_data = p_inst
     }; 
-
-    struct counter_alarm_cfg y_cfg = {
-        .flags = 0,
-        .ticks = 1000,
-        .callback = p_inst->tim_cb[1],
-        .user_data = p_inst
-    }; 
     
     if (counter_set_channel_alarm(p_inst->timer.t[0], 0, &x_cfg) != 0) {
         // LOG_ERR("Error: Failed to set Timer X"); 
-    };
-
-    if (counter_set_channel_alarm(p_inst->timer.t[1], 0, &y_cfg) != 0) {
-        // LOG_ERR("Error: Failed to set Timer Y"); 
     };
 
     return; 
@@ -519,16 +481,6 @@ static void timer_x_callback (const struct device *timer_dev,
 
 }
 
-static void timer_y_callback (const struct device *timer_dev,
-                              uint8_t chan_id, uint32_t ticks,
-                              void *user_data) {
-    
-    struct Idein_Instance *p_inst = (struct Idein_Instance *)user_data; 
-
-    q_timer_elapsed(p_inst, k_Idein_Id_2); 
-
-}
-
 
 /* **********
  * Listener Callbacks
@@ -541,28 +493,6 @@ static void timer_y_callback (const struct device *timer_dev,
 
 
 static void post_updated_pot_value(struct Idein_Instance * p_inst, enum Pot_Id id, uint16_t val) 
-{
-    if (id < 16) {
-        p_inst->seq.voltage[id] = val; 
-    } else if (id < 32) {
-        p_inst->seq.time[ id - 16 ] = val; 
-    } else {
-        switch(id) {
-            default: break; 
-            case 32:
-            case 33:
-                p_inst->seq.param[ id - 32 ] = val; 
-                break; 
-            case 34: 
-                p_inst->seq.global = val; 
-                break; 
-        }
-    }
-}
-
-
-
-static void set_midi_on_step(struct Idein_Instance * p_inst, enum Idein_Id id, uint8_t step, uint8_t offset) 
 {
 
 }
@@ -683,14 +613,16 @@ static void state_run_run(void * o)
            
             break; 
         case k_Idein_SM_Evt_Sig_Pot_Value_Changed:
-           
+            
+            for (int i = 0; i < 4; i++) {
+                p_inst->idein.threshold[i] = p_evt->data.pot_changed.val[i];
+            }
+
+            p_inst->idein.volume = p_evt->data.pot_changed.val[VOL_POT];
+
             break;
         case k_Idein_SM_Evt_Sig_Button_Pressed:
-            struct Idein_SM_Evt_Sig_Button_Pressed * p_button = &p_evt->data.btn_pressed; 
-            #if 0 /* Pseudo code: */
-            Buttons in normal state tell us which steps are active. In this case, just update sequencer instance information with which steps are active. 
-            Later we will deal with the mode button which, when held, will put us in another state to edit the length of our sequences. 
-            #endif
+
             break; 
         #if CONFIG_FKMG_IDEIN_SHUTDOWN_ENABLED
         case k_Idein_Evt_Sig_Instance_Deinitialized:
