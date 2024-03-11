@@ -1,17 +1,13 @@
 /* *****************************************************************************
  * @brief Pot implementation.
+ *  Convert all 5 ADC pot readings every 100ms. If/when we configure the device to
+ *  output MIDI CC values, we can lower this to 10ms, if we feel fit. After converstion,
+ *  values are filtered and broadcasted if they've changed.
  */
 
 /* *****************************************************************************
  * TODO
-
-    Implement Filter on ADC readings. They're currently all over the place and 
-    cause pot_change broadcast event to over-fire, resulting in crashes down
-    the line. 
-
-    Abstract more? Right now this module is somewhat cemented in the mux config
-    for my project. Biggest sticking point for me at the moment is how to account
-    for various mux pins, particularly in the mux adv function. 
+ * Make sure all 5 values are being read and stored in the buffer. 
  */
 
 /* *****************************************************************************
@@ -27,6 +23,7 @@
 #include <zephyr/drivers/gpio.h>
 
 #include <assert.h>
+#include <string.h> 
 
 #include <stdlib.h>
 
@@ -45,10 +42,10 @@
 
 #define ADC_NODE            DT_NODELABEL(adc1)
 #define ADC_RESOLUTION      12          
-#define ADC_CHANNEL         BIT(0) | BIT(1) | BIT(2) | BIT(3) | BIT(4) | BIT(5)
+#define ADC_CHANNEL         BIT(2) | BIT(3) | BIT(4) | BIT(9) | BIT(15)
 #define ADC_REFERENCE       ADC_REF_INTERNAL
 #define ADC_GAIN            ADC_GAIN_1
-#define ADC_BUFFER_SIZE     6
+#define ADC_BUFFER_SIZE     5
 
 /* *****************************************************************************
  * Debugging
@@ -100,11 +97,6 @@ static struct Pot_Instance * sm_ctx_to_instance(struct smf_ctx * p_sm_ctx)
     return(NULL);
 }
 
-
-static enum Pot_Id next_pot(enum Pot_Id id)
-{
-    return((id + 1) % k_Pot_Id_Cnt);
-}
 
 /* **************
  * Listener Utils
@@ -353,15 +345,15 @@ static void broadcast_interface_deinitialized(
 #endif
 
 static void broadcast_pot_changed(
-        struct Pot_Instance * p_inst,
-        enum Pot_Id           id,
-        uint32_t              val)
+        struct Pot_Instance * p_inst)
 {
+    uint32_t adc_vals[5];
+
+    memcpy(adc_vals, p_inst->adc_readings, sizeof(p_inst->adc_readings));
 
     struct Pot_Evt evt = {
             .sig = k_Pot_Evt_Sig_Changed,
-            .data.changed.id = id,
-            .data.changed.val = val
+            .data.changed.val = adc_vals
     };
 
     broadcast_event_to_listeners(p_inst, &evt);
@@ -406,12 +398,7 @@ static bool find_list_containing_listener_and_remove_listener(
 }
 #endif
 
-// static bool signal_has_listeners(
-//         struct Pot_Instance * p_inst,
-//         enum Pot_Evt_Sig      sig)
-// {
-//     return(!sys_slist_is_empty(&p_inst->list.listeners[sig]));
-// }
+
 
 /* **************
  * Event Queueing
@@ -444,11 +431,10 @@ static void q_force_pot_change(struct Pot_Instance * p_inst, enum Pot_Id id)
     q_sm_event(p_inst, &evt);
 }
 
-static void q_convert(struct Pot_Instance * p_inst, enum Pot_Id id)
+static void q_convert(struct Pot_Instance * p_inst)
 {
     struct Pot_SM_Evt evt = {
-            .sig = k_Pot_SM_Evt_Sig_Convert,
-            .data.convert.id = id
+            .sig = k_Pot_SM_Evt_Sig_Convert
     };
 
     q_sm_event(p_inst, &evt);
@@ -459,9 +445,7 @@ static void on_conversion_timer_expiry(struct k_timer * p_timer)
     struct Pot_Instance * p_inst =
         CONTAINER_OF(p_timer, struct Pot_Instance, timer.conversion);
 
-    enum Pot_Id nextPotID = next_pot(p_inst->id);
-    p_inst->id = nextPotID;
-    q_convert(p_inst, nextPotID);
+    q_convert(p_inst);
 
 }
 
@@ -469,7 +453,7 @@ static void on_conversion_timer_expiry(struct k_timer * p_timer)
 static void start_conversion_timer(struct Pot_Instance * p_inst)
 {
     #define CONVERSION_INITIAL_DURATION     K_NO_WAIT
-    #define CONVERSION_AUTO_RELOAD_PERIOD   K_MSEC(1)
+    #define CONVERSION_AUTO_RELOAD_PERIOD   K_MSEC(100)
     k_timer_start(&p_inst->timer.conversion, CONVERSION_INITIAL_DURATION,
             CONVERSION_AUTO_RELOAD_PERIOD);
 
@@ -501,11 +485,9 @@ static void init_adc_device (struct Pot_Instance * p_inst) {
 }
 
 
-static uint16_t adc_convert_pot (struct Pot_Instance * p_inst, enum Pot_Id id) 
+static int adc_convert_pot (struct Pot_Instance * p_inst, enum Pot_Id id) 
 {   
-    uint32_t val = 0; 
-
-    p_inst->last_adc_read[id] = p_inst->adc_current_reading[id]; 
+    int ret; 
 
     struct adc_sequence sequence = {
         .channels = ADC_CHANNEL,
@@ -514,31 +496,35 @@ static uint16_t adc_convert_pot (struct Pot_Instance * p_inst, enum Pot_Id id)
         .resolution = ADC_RESOLUTION
     };
 
-    if (adc_read(adc_dev, &sequence) == 0) {
-        val = p_inst->adc_buffer[0]; 
-    }
+    ret = adc_read(adc_dev, &sequence);
 
-    return val; 
+    return ret; 
 } 
 
 
 
-static uint16_t adc_filter_pot (struct Pot_Instance * p_inst, enum Pot_Id id, uint16_t val)
+static void adc_filter_pot (struct Pot_Instance * p_inst)
 {
-    return val; 
+    for (int i = 0; i < ADC_BUFFER_SIZE; i++) {
+        p_inst->adc_filtered[i] += 0.01f * ((float)p_inst->adc_buffer[i] - p_inst->adc_filtered[i]);
+    }
 };
 
 
 
-static bool did_pot_change (struct Pot_Instance * p_inst, enum Pot_Id id, uint16_t val) 
+static bool did_pot_change (struct Pot_Instance * p_inst) 
 {
     bool status = false; 
+    /* iterate through our filtered buffer and compare it to our final buffer output. 
+        if there is a change for any of the 5 pots, return true. */
 
-    if (val != p_inst->adc_current_reading[id]) {
-        status = true;
-        p_inst->adc_current_reading[id] = val; 
+    for (int i = 0; i < ADC_BUFFER_SIZE; i++) {
+        if (p_inst->adc_filtered[i] != p_inst->adc_readings[i]) {
+            p_inst->adc_readings[i] = p_inst->adc_filtered[i];
+            status = true;
+            return status; 
+        }
     }
-
     return status; 
 };
 
@@ -659,14 +645,17 @@ static void state_run_run(void * o)
         case k_Pot_SM_Evt_Sig_Convert:
             struct Pot_SM_Evt_Sig_Convert * p_convert = &p_evt->data.convert;
 
-            uint16_t val = adc_convert_pot(&p_inst, p_convert->id);
-            
-            uint16_t filtered_reading = adc_filter_pot(p_inst, p_convert->id, val);  
+            int ret = adc_convert_pot(&p_inst, p_convert->id);
 
-            if (did_pot_change(p_inst, p_convert->id, filtered_reading)) {
-                /* Since ADC values aren't yet filtered, this is firing too often and getting stuck in the q_sm_event assertion. 
-                Earlier, there also seemed to be an issue there when we want to broadcast an event? The CB function seemed to get lost. */                       
-                // broadcast_pot_changed(&p_inst, p_convert->id, filtered_reading); 
+            if (ret != 0) {
+                printk("ADC Conversion Failed\n");
+                return; 
+            }
+            
+            adc_filter_pot(p_inst);  
+
+            if (did_pot_change(p_inst)) {     
+                broadcast_pot_changed(&p_inst); 
             }
 
              break;
