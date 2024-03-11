@@ -14,6 +14,7 @@
 extern "C" {
 #endif
 
+
 /* *****************************************************************************
  * Includes
  */
@@ -83,18 +84,9 @@ struct Idein_Instance{
     }midi;
 
     struct{
-        uint8_t step[2];
-        uint8_t minStep[2];
-        uint8_t maxStep[2];
-        bool active[16]; 
-        uint16_t voltage[16];
-        uint16_t time[16]; 
-        uint16_t param[2]; 
-        uint16_t delay_buffer[2]; 
-        bool edge[2]; 
-        uint16_t global; 
-        uint8_t offset; 
-    }seq; 
+        uint32_t threshold[4];
+        uint32_t volume; 
+    }idein; 
 
     counter_alarm_callback_t tim_cb[2];
 
