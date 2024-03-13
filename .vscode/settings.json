@@ -3,6 +3,9 @@
         "counter.h": "c",
         "kernel.h": "c",
         "midi.h": "c",
-        "evt.h": "c"
+        "evt.h": "c",
+        "__node_handle": "c",
+        "sm_evt.h": "c",
+        "log.h": "c"
     }
 }

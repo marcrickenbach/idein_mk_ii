@@ -40,6 +40,7 @@ enum Idein_Evt_Sig{
     k_Idein_Evt_Sig_Btn_Value_Changed,
     k_Idein_Evt_Sig_LED_Write_Ready,
     k_Idein_Evt_Sig_MIDI_Write_Ready,
+    k_Idein_Evt_Sig_Clock_Event,
     k_Idein_Evt_Sig_End,                        // Exclusive
     k_Idein_Evt_Sig_Max = k_Idein_Evt_Sig_End - 1,// Inclusive
     k_Idein_Evt_Sig_Lst = k_Idein_Evt_Sig_End - 1,// Inclusive
@@ -57,11 +58,17 @@ struct Idein_Evt_Data_Instance_Initialized{
     struct Idein_Instance * p_inst;
 };
 
+/* Data signal k_Idein_Evt_Sig_Clock_Event can generate. */
+struct Idein_Evt_Sig_Clock_Event{
+    uint16_t note; 
+};
+
 /* Events (i.e. signal + signal's data if any) that can be generated. */
 struct Idein_Evt{
 	enum Idein_Evt_Sig sig;
 	union Idein_Evt_Data{
         struct Idein_Evt_Data_Instance_Initialized  initd;
+        struct Idein_Evt_Sig_Clock_Event            note;
 	}data;
 };
 

@@ -1,9 +1,12 @@
 /* *****************************************************************************
  * @brief Sensor implementation.
+ * Driver for APDS-9253 Light Sensor. Readings occur every 100 ms. 
+ * Upon successful read, the sensor data is broadcast to listeners. 
  */
 
 /* *****************************************************************************
  * TODO
+    
  */
 
 /* *****************************************************************************
@@ -13,10 +16,14 @@
 #include "sensor.h"
 
 #include <zephyr/smf.h>
-#include <zephyr/drivers/sensor.h>
+
 #include <zephyr/device.h>
 
 #include <assert.h>
+
+#include <zephyr/drivers/gpio.h>
+#include <zephyr/drivers/i2c.h>
+#include <zephyr/drivers/dma.h>
 
 #include "sensor/private/sm_evt.h"
 #include "sensor/private/module_data.h"
@@ -31,6 +38,9 @@
 #define OVERRIDE    true
 #define NO_OVERRIDE false
 
+#define I2C1_NODE           DT_NODELABEL(i2c1)
+
+#define LIGHT_RESOLUTION	0
 
 /* *****************************************************************************
  * Debugging
@@ -53,15 +63,39 @@ static struct sensor_module_data sensor_md = {0};
 /* Convenience accessor to keep name short: md - module data. */
 #define md sensor_md
 
-const struct device *dev;
-struct sensor_value als_ir, als_red, als_green, als_blue;
+const struct device * i2c_dev = DEVICE_DT_GET(I2C1_NODE);
 
-	// printk("APDS9960 sample application\n");
-	// dev = DEVICE_DT_GET_ONE(avago_apds9960);
-	// if (!device_is_ready(dev)) {
-	// 	printk("sensor: device not ready.\n");
-	// 	return 0;
-	// }
+// CHIP ADDRESSES
+const uint16_t RGB_ADDRESS = 0x52;
+
+// CONFIG ADDRESSES
+const uint16_t MAIN_CTRL = 0x00;
+const uint16_t LS_MEAS_RATE = 0x04;
+const uint16_t LS_GAIN = 0x05;
+
+// COLOR REGISTERS
+uint8_t RED_REGISTER = 0x13;
+uint8_t GREEN_REGISTER = 0xD;
+uint8_t BLUE_REGISTER = 0x10;
+uint8_t IR_REGISTER = 0xA;
+
+// COMMANDS
+uint8_t RGB_CONFIG = 0x06;
+
+
+// READ DATA
+// raw data
+uint8_t red_val[3];
+uint8_t blue_val[3];
+uint8_t green_val[3];
+uint8_t ir_val[3];
+
+// compiled data
+uint32_t RED_TOTAL = 0;
+uint32_t GREEN_TOTAL = 0;
+uint32_t BLUE_TOTAL = 0;
+uint32_t IR_TOTAL = 0;
+
 
 /* *****************************************************************************
  * Private
@@ -181,11 +215,11 @@ static void init_sensor_timer(struct Sensor_Instance * p_inst)
 }
 
 static void config_instance_deferred(
-        struct Pot_Instance     * p_inst,
-        struct Pot_Instance_Cfg * p_cfg)
+        struct Sensor_Instance     * p_inst,
+        struct Sensor_Instance_Cfg * p_cfg)
 {
 
-    init_conversion_timer(p_inst);
+    init_sensor_timer(p_inst);
 
 }
 
@@ -402,20 +436,95 @@ static void q_init_instance_event(struct Sensor_Instance_Cfg * p_cfg)
 
 static void on_sensor_timer_expiry(struct k_timer * p_timer)
 {
-    struct Pot_Instance * p_inst =
+    struct Sensor_Instance * p_inst =
         CONTAINER_OF(p_timer, struct Sensor_Instance, timer.sensor);
 
-    // FIXME: This is where we get a sensor reading. 
+    struct Sensor_SM_Evt evt = {
+        .sig = k_Sensor_SM_Evt_Sig_Read
+    };
 
+    q_sm_event(p_inst, &evt);
 }
 
 /* Cause conversion event to occur immediately and then regularly after that. */
 static void start_sensor_timer(struct Sensor_Instance * p_inst)
 {
     #define CONVERSION_INITIAL_DURATION     K_NO_WAIT
-    #define CONVERSION_AUTO_RELOAD_PERIOD   K_MSEC(10)
+    #define CONVERSION_AUTO_RELOAD_PERIOD   K_MSEC(100)
     k_timer_start(&p_inst->timer.sensor, CONVERSION_INITIAL_DURATION,
             CONVERSION_AUTO_RELOAD_PERIOD);
+
+}
+
+void configure_light_sensor(struct Sensor_Instance * p_inst) {
+
+	uint8_t init_test = 0;
+    int ret;
+
+    uint8_t datatowrite_ctrl = 0x06;    // Main Control
+    ret = i2c_burst_write(i2c_dev, (RGB_ADDRESS<<1), MAIN_CTRL, &datatowrite_ctrl, sizeof(datatowrite_ctrl));
+    if (ret < 0) {
+        LOG_ERR("Could not write to MAIN_CTRL register, %d", ret);
+    } else {
+        init_test |= (1U<<0);
+    }
+
+    uint8_t datatowrite_meas = 0x22;    // Measurement and Rate Parameters
+    
+    ret = i2c_burst_write(i2c_dev, (RGB_ADDRESS<<1), LS_MEAS_RATE, &datatowrite_ctrl, sizeof(datatowrite_ctrl));
+    if (ret < 0) {
+        LOG_ERR("Could not write to LS_MEAS_RATE register, %d", ret);
+    } else {
+        init_test |= (1U<<1);
+    }
+
+    uint8_t datatowrite_gain = 0x02;    // Gain setting
+    
+    ret = i2c_burst_write(i2c_dev, (RGB_ADDRESS<<1), LS_GAIN, &datatowrite_ctrl, sizeof(datatowrite_ctrl));
+    if (ret < 0) {
+        LOG_ERR("Could not write to LS_GAIN register, %d", ret);
+    } else {
+        init_test |= (1U<<2);
+    }
+
+
+
+}
+
+
+void read_sensor(struct Sensor_Instance * p_inst)
+{
+    int ret; 
+    
+    // RED
+    ret = i2c_write_read(i2c_dev, (RGB_ADDRESS<<1), &RED_REGISTER, 1, red_val, 3);
+    if (ret < 0) {
+        LOG_ERR("Could not read from RED_REGISTER, %d", ret);
+    }
+    RED_TOTAL = (red_val[2] | red_val[1] | red_val[0])<<LIGHT_RESOLUTION;
+
+
+    // GREEN
+    ret = i2c_write_read(i2c_dev, (RGB_ADDRESS<<1), &GREEN_REGISTER, 1, green_val, 3);
+    if (ret < 0) {
+        LOG_ERR("Could not read from GREEN_REGISTER, %d", ret);
+    }
+    GREEN_TOTAL = (green_val[2] | green_val[1] | green_val[0])<<LIGHT_RESOLUTION;
+
+
+    // BLUE
+    ret = i2c_write_read(i2c_dev, (RGB_ADDRESS<<1), &BLUE_REGISTER, 1, blue_val, 3);
+    if (ret < 0) {
+        LOG_ERR("Could not read from BLUE_REGISTER, %d", ret);
+    }
+    BLUE_TOTAL = (blue_val[2] | blue_val[1] | blue_val[0])<<LIGHT_RESOLUTION;
+
+    // IR
+    ret = i2c_write_read(i2c_dev, (RGB_ADDRESS<<1), &IR_REGISTER, 1, ir_val, 3);
+    if (ret < 0) {
+        LOG_ERR("Could not read from IR_REGISTER, %d", ret);
+    }
+    IR_TOTAL = (ir_val[2] | ir_val[1] | ir_val[0])<<LIGHT_RESOLUTION;
 
 }
 
@@ -503,7 +612,7 @@ static void state_init_run(void * o)
     struct Sensor_SM_Evt_Sig_Init_Instance * p_ii = &p_evt->data.init_inst;
 
     broadcast_instance_initialized(p_inst, p_ii->cfg.cb);
-
+    config_instance_deferred(p_inst, &p_ii->cfg);
     smf_set_state(SMF_CTX(p_sm), &states[run]);
 }
 
@@ -533,17 +642,31 @@ static void state_run_run(void * o)
             /* Should never occur. */
             assert(false);
             break;
-        case k_Sensor_Evt_Sig_Read:
-            struct k_Sensor_SM_Evt_Sig_Read * p_convert = &p_evt->data.read;
-    		
-            if (sensor_sample_fetch(dev)) {
-			    printk("sensor_sample fetch failed\n");
-		    }
+        case k_Sensor_SM_Evt_Sig_Read:
 
-		    sensor_channel_get(dev, SENSOR_CHAN_LIGHT, &als_ir);
-            sensor_channel_get(dev, SENSOR_CHAN_LIGHT, &als_red);
-            sensor_channel_get(dev, SENSOR_CHAN_LIGHT, &als_green);
-            sensor_channel_get(dev, SENSOR_CHAN_LIGHT, &als_blue);
+            read_sensor(p_inst);
+            
+            /*broadcast event to listener telling it we have new sensor data*/
+            uint32_t sensor_data[4] = {RED_TOTAL, GREEN_TOTAL, BLUE_TOTAL, IR_TOTAL};
+
+            struct Sensor_SM_Evt evt = {
+                .sig = k_Sensor_Evt_Sig_Read,
+                .data.read.read = sensor_data
+            };
+
+            broadcast_event_to_listeners(p_inst, &evt);
+    		
+            break;
+        case k_Sensor_SM_Evt_Sig_Sensor_Setup_Complete:
+            uint8_t result = p_evt->data.setup.setup;
+            
+            bool pass = (result == 0x07) ? true : false;
+
+            struct Sensor_SM_Evt read_evt = {
+                .sig = k_Sensor_Evt_Sig_Sensor_Setup_Complete,
+                .data.setup.setup = pass 
+            };
+            broadcast_event_to_listeners(p_inst, p_evt);
 
             break;
         #if CONFIG_FKMG_SENSOR_SHUTDOWN_ENABLED
@@ -709,7 +832,6 @@ void Sensor_Add_Listener(struct Sensor_Listener_Cfg * p_cfg)
     config_listener(p_lsnr, p_cfg);
     add_listener_for_signal_to_listener_list(p_cfg);
 }
-
 
 
 #if CONFIG_FKMG_SENSOR_ALLOW_LISTENER_REMOVAL

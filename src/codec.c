@@ -4,6 +4,7 @@
 
 /* *****************************************************************************
  * TODO
+ * Initialize codec interface -- PCM5102APWR -- over i2s
  */
 
 /* *****************************************************************************
@@ -15,6 +16,10 @@
 #include <zephyr/smf.h>
 
 #include <assert.h>
+
+#include <zephyr/drivers/i2c.h>
+#include <zephyr/drivers/i2s.h>
+#include <zephyr/drivers/gpio.h>
 
 #include "codec/private/sm_evt.h"
 #include "codec/private/module_data.h"
@@ -29,6 +34,35 @@
 #define OVERRIDE    true
 #define NO_OVERRIDE false
 
+#define NUM_BLOCKS 20
+
+#define SAMPLE_NO 64
+
+static int16_t data[SAMPLE_NO] = {
+	  3211,   6392,   9511,  12539,  15446,  18204,  20787,  23169,
+	 25329,  27244,  28897,  30272,  31356,  32137,  32609,  32767,
+	 32609,  32137,  31356,  30272,  28897,  27244,  25329,  23169,
+	 20787,  18204,  15446,  12539,   9511,   6392,   3211,      0,
+	 -3212,  -6393,  -9512, -12540, -15447, -18205, -20788, -23170,
+	-25330, -27245, -28898, -30273, -31357, -32138, -32610, -32767,
+	-32610, -32138, -31357, -30273, -28898, -27245, -25330, -23170,
+	-20788, -18205, -15447, -12540,  -9512,  -6393,  -3212,     -1,
+};
+
+#define BLOCK_SIZE (2 * sizeof(data))
+
+#ifdef CONFIG_NOCACHE_MEMORY
+	#define MEM_SLAB_CACHE_ATTR __nocache
+#else
+	#define MEM_SLAB_CACHE_ATTR
+#endif /* CONFIG_NOCACHE_MEMORY */
+
+static char MEM_SLAB_CACHE_ATTR __aligned(WB_UP(32))
+	_k_mem_slab_buf_tx_0_mem_slab[(NUM_BLOCKS) * WB_UP(BLOCK_SIZE)];
+
+static STRUCT_SECTION_ITERABLE(k_mem_slab, tx_0_mem_slab) =
+	Z_MEM_SLAB_INITIALIZER(tx_0_mem_slab, _k_mem_slab_buf_tx_0_mem_slab,
+				WB_UP(BLOCK_SIZE), NUM_BLOCKS);
 
 /* *****************************************************************************
  * Debugging
@@ -52,6 +86,8 @@ static struct codec_module_data codec_md = {0};
 #define md codec_md
 
 
+struct i2s_config i2s_cfg;
+const struct device *i2s_dev = DEVICE_DT_GET(DT_NODELABEL(i2s2));
 
 /* *****************************************************************************
  * Private
@@ -381,6 +417,96 @@ static void q_init_instance_event(struct Codec_Instance_Cfg * p_cfg)
 }
 
 
+/* **************
+ * I2S Configs
+ * **************/
+
+static int i2s_init(void)
+{
+    if (!device_is_ready(i2s_dev)) {
+        LOG_ERR("I2S device %s is not ready", i2s_dev->name);
+        return -ENODEV;
+    }
+
+    i2s_cfg.word_size = 16U;
+	i2s_cfg.channels = 2U;
+	i2s_cfg.format = I2S_FMT_DATA_FORMAT_I2S;
+	i2s_cfg.frame_clk_freq = 44100;
+	i2s_cfg.block_size = BLOCK_SIZE;
+	i2s_cfg.timeout = 2000;
+	/* Configure the Transmit port as Master */
+	i2s_cfg.options = I2S_OPT_FRAME_CLK_MASTER
+			| I2S_OPT_BIT_CLK_MASTER;
+	i2s_cfg.mem_slab = &tx_0_mem_slab;
+
+    return i2s_configure(i2s_dev, I2S_DIR_TX, &i2s_cfg);
+}
+
+
+/* Fill buffer with sine wave on left channel, and sine wave shifted by
+ * 90 degrees on right channel. "att" represents a power of two to attenuate
+ * the samples by
+ */
+static void fill_buf(int16_t *tx_block, int att)
+{
+	int r_idx;
+
+	for (int i = 0; i < SAMPLE_NO; i++) {
+		/* Left channel is sine wave */
+		tx_block[2 * i] = data[i] / (1 << att);
+		/* Right channel is same sine wave, shifted by 90 degrees */
+		r_idx = (i + (ARRAY_SIZE(data) / 4)) % ARRAY_SIZE(data);
+		tx_block[2 * i + 1] = data[r_idx] / (1 << att);
+	}
+}
+
+static int tx_i2s_data(struct Codec_Instance * p_inst)
+{
+    
+    void *tx_block[NUM_BLOCKS];
+    uint32_t tx_idx;
+    int ret;
+
+    for (tx_idx = 0; tx_idx < NUM_BLOCKS; tx_idx++) {
+		ret = k_mem_slab_alloc(&tx_0_mem_slab, &tx_block[tx_idx],
+				       K_FOREVER);
+		if (ret < 0) {
+			printf("Failed to allocate TX block\n");
+			return ret;
+		}
+		fill_buf((uint16_t *)tx_block[tx_idx], tx_idx % 3);
+	}
+
+	tx_idx = 0;
+	/* Send first block */
+	ret = i2s_write(i2s_dev, tx_block[tx_idx++], BLOCK_SIZE);
+	if (ret < 0) {
+		printf("Could not write TX buffer %d\n", tx_idx);
+		return ret;
+	}
+	/* Trigger the I2S transmission */
+	ret = i2s_trigger(i2s_dev, I2S_DIR_TX, I2S_TRIGGER_START);
+	if (ret < 0) {
+		printf("Could not trigger I2S tx\n");
+		return ret;
+	}
+
+	for (; tx_idx < NUM_BLOCKS; ) {
+		ret = i2s_write(i2s_dev, tx_block[tx_idx++], BLOCK_SIZE);
+		if (ret < 0) {
+			printf("Could not write TX buffer %d\n", tx_idx);
+			return ret;
+		}
+	}
+	/* Drain TX queue */
+	ret = i2s_trigger(i2s_dev, I2S_DIR_TX, I2S_TRIGGER_DRAIN);
+	if (ret < 0) {
+		printf("Could not trigger I2S tx\n");
+		return ret;
+	}
+	printf("All I2S blocks written\n");
+}
+
 /* **********
  * FSM States
  * **********/
@@ -466,6 +592,8 @@ static void state_init_run(void * o)
 
     broadcast_instance_initialized(p_inst, p_ii->cfg.cb);
 
+    i2s_init(); 
+
     smf_set_state(SMF_CTX(p_sm), &states[run]);
 }
 
@@ -495,10 +623,7 @@ static void state_run_run(void * o)
             assert(false);
             break;
         case k_Codec_Evt_Sig_Write:
-            // struct Codec_SM_Evt_Sig_Convert * p_convert = &p_evt->data.convert;
-            #if 0 /* Pseudo code: */
-
-            #endif
+            tx_i2s_data(p_inst);
             break;
         #if CONFIG_FKMG_CODEC_SHUTDOWN_ENABLED
         case k_Codec_Evt_Sig_Instance_Deinitialized:

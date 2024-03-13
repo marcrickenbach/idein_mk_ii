@@ -35,6 +35,7 @@ enum Voice_SM_Evt_Sig{
     k_Voice_SM_Evt_Sig_Changed,
 	k_Voice_SM_Evt_Sig_Write_Voice,
 	k_Voice_SM_Evt_Sig_Force_Change,
+    k_Voice_SM_Evt_Sig_New_Note_Event,
 
     k_Voice_SM_Evt_Sig_End,                           // Exclusive
     k_Voice_SM_Evt_Sig_Max = k_Voice_SM_Evt_Sig_End - 1,// Inclusive
@@ -66,6 +67,10 @@ struct Voice_SM_Evt_Sig_Changed{
     uint16_t val; 
 };
 
+/* Data signal k_Voice_SM_Sig_Changed can generate. */
+struct Voice_SM_Evt_Sig_Clock_Event{
+    uint16_t val; 
+};
 
 /* Events (i.e. signal + signal's data if any) Voice State Machine generates. */
 struct Voice_SM_Evt{
@@ -74,6 +79,7 @@ struct Voice_SM_Evt{
         struct Voice_SM_Evt_Sig_Init_Instance    init_inst;
         struct Voice_SM_Evt_Sig_Write_Voice       Voice_write;
         struct Voice_SM_Evt_Sig_Changed          changed;
+        struct Voice_SM_Evt_Sig_Clock_Event     note; 
 	}data;
 };
 

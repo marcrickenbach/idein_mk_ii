@@ -35,7 +35,7 @@ enum Sensor_Evt_Sig{
     #endif
     k_Sensor_Evt_Sig_TimerUp,                    //
     k_Sensor_Evt_Sig_Read,                      // Write to Sensor
-         
+    k_Sensor_Evt_Sig_Sensor_Setup_Complete,      // Sensor setup complete
 
     k_Sensor_Evt_Sig_End,                        // Exclusive
     k_Sensor_Evt_Sig_Max = k_Sensor_Evt_Sig_End - 1,// Inclusive
@@ -60,12 +60,24 @@ struct Sensor_Evt_Data_Timer_Up{
     uint32_t    val;
 };
 
+/* Data signal k_Sensor_Evt_Sig_Read can generate */
+struct Sensor_Evt_Data_Read{
+    uint32_t read_values[4]; 
+};
+
+/* Data signal k_Sensor_Evt_Sig_Sensor_Setup_Complete can generate. */
+struct Sensor_Evt_Setup_Complete{
+    bool    passed;
+};
+
 /* Events (i.e. signal + signal's data if any) that can be generated. */
 struct Sensor_Evt{
 	enum Sensor_Evt_Sig sig;
 	union Sensor_Evt_Data{
-        struct Sensor_Evt_Data_Instance_Initialized    initd;
-        struct Sensor_Evt_Data_Timer_Up                timup; 
+        struct Sensor_Evt_Data_Instance_Initialized     initd;
+        struct Sensor_Evt_Data_Timer_Up                 timup; 
+        struct Sensor_Evt_Data_Read                     read;
+        struct Sensor_Evt_Setup_Complete                setup;
 	}data;
 };
 

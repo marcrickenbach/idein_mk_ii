@@ -1,5 +1,5 @@
 /** ****************************************************************************
- * @brief Idein instance interface.
+ * @brief UI instance interface.
  *
  * An instance is the root instantiation of the implementation. An instance
  * contains everything required to declare and define all the threads, queues,
@@ -7,13 +7,12 @@
  * only one is required or even possible.
  */
 
-#ifndef FKMG_IDEIN_INSTANCE_H
-#define FKMG_IDEIN_INSTANCE_H
+#ifndef FKMG_UI_INSTANCE_H
+#define FKMG_UI_INSTANCE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 
 /* *****************************************************************************
  * Includes
@@ -21,11 +20,7 @@ extern "C" {
 
 #include <zephyr/kernel.h>
 #include <zephyr/smf.h>
-#include <zephyr/drivers/counter.h>
-#include <zephyr/drivers/gpio.h>
 
-#include "id.h"
-#include "step_id.h"
 #include "err.h"
 #include "evt.h"
 #include "private/sm_evt.h"
@@ -38,10 +33,10 @@ extern "C" {
  * Instance
  */
 
-struct Idein_Instance{
-    #if CONFIG_FKMG_IDEIN_RUNTIME_ERROR_CHECKING
+struct UI_Instance{
+    #if CONFIG_FKMG_UI_RUNTIME_ERROR_CHECKING
     /* Error status. */
-	enum Idein_Err_Id err;
+	enum UI_Err_Id err;
     #endif
 
     /* Threads used. */
@@ -61,11 +56,11 @@ struct Idein_Instance{
 	struct smf_ctx sm;
 
     /* Current sm event. */
-    struct Idein_SM_Evt sm_evt;
+    struct UI_SM_Evt sm_evt;
 
     /* Singly linked lists to keep track of things. */
     struct{
-        sys_slist_t listeners[k_Idein_Evt_Sig_Cnt];
+        sys_slist_t listeners[k_UI_Evt_Sig_Cnt];
     }list;
 
     /* For adding this instance to singly linked lists. */
@@ -73,34 +68,12 @@ struct Idein_Instance{
         sys_snode_t instance;
     }node;
 
-    /* Timers used. */
-    struct{
-        const struct device *t[2]; 
-        bool running[2];
-    }timer;
-
-    struct {
-        uint8_t last_note[2];
-    }midi;
-
-    struct{
-        uint32_t threshold[4];
-        uint32_t volume; 
-    }idein; 
-
-    struct gpio_callback clock_gpio_cb;
-
-    counter_alarm_callback_t tim_cb[2];
-
-    /* Current Seq. */
-    enum Idein_Id id;
-
-    /* GPIO Transport Interrupt Callback*/
-    struct gpio_callback transport_gpio_cb;
+    /* Current Channel. */
+    enum UI_Id id;
 };
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* FKMG_IDEIN_INSTANCE_H */
+#endif /* FKMG_UI_INSTANCE_H */

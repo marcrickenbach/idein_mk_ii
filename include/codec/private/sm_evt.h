@@ -32,7 +32,7 @@ enum Codec_SM_Evt_Sig{
     #if CONFIG_FKMG_CODEC_ALLOW_SHUTDOWN
 	k_Codec_SM_Evt_Sig_Deinit_Instance,
     #endif
-	k_Codec_SM_Evt_Sig_XXX,
+	k_Codec_SM_Evt_Sig_Trigger_Sine,
 
     k_Codec_SM_Evt_Sig_End,                           // Exclusive
     k_Codec_SM_Evt_Sig_Max = k_Codec_SM_Evt_Sig_End - 1,// Inclusive

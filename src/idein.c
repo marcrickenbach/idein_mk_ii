@@ -56,6 +56,9 @@
 #define IR_POT          3
 #define VOL_POT         4
 
+#define GPIO_PINS   DT_PATH(zephyr_user)
+
+
 /* *****************************************************************************
  * Debugging
  */
@@ -69,6 +72,8 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(idein, CONFIG_FKMG_IDEIN_LOG_LEVEL);
 
+
+uint8_t note_data_raw = 0; 
 
 /* *****************************************************************************
  * Structs
@@ -85,7 +90,10 @@ static struct idein_module_data idein_md = {0};
  */
 
 
+static const struct gpio_dt_spec clock_in = GPIO_DT_SPEC_GET(GPIO_PINS, ext_clk_in_gpios);
+static const struct gpio_dt_spec clock_out = GPIO_DT_SPEC_GET(GPIO_PINS, int_clk_out_gpios);
 
+static void on_clock_in(const struct device *dev, struct gpio_callback *cb, uint32_t pins);
 
 /* *****************************************************************************
  * Private
@@ -463,8 +471,6 @@ static void q_timer_elapsed (struct Idein_Instance * p_inst, enum Idein_Id id)
 {
     struct Idein_SM_Evt evt = {
         .sig = k_Idein_SM_Evt_Timer_Elapsed,
-        .data.stepped.id = id,
-        .data.stepped.edge = false
     };
     q_sm_event(p_inst, &evt);
 
@@ -498,6 +504,96 @@ static void post_updated_pot_value(struct Idein_Instance * p_inst, enum Pot_Id i
 }
 
 
+static void clock_gpio_pin_config(void) {
+    
+    int ret;
+    
+    if (    !device_is_ready(clock_in.port)
+        ||  !device_is_ready(clock_out.port)) {
+        ret = 1;
+    }
+    ret = gpio_pin_configure(clock_in.port, clock_in.pin, GPIO_INPUT | GPIO_PULL_DOWN);
+    
+    if (ret < 0) {
+        LOG_ERR("Error: Failed to configure Clock In pin");
+    }
+
+    ret = gpio_pin_configure_dt(&clock_out, GPIO_OUTPUT_LOW);
+    
+    if (ret < 0) {
+        LOG_ERR("Error: Failed to configure Clock Out pin");
+    }
+
+}
+
+static void clock_gpio_interrupt_config(void)
+{
+    int ret;
+    
+    ret = gpio_pin_interrupt_configure(clock_in.port, clock_in.pin, GPIO_INT_EDGE_TO_ACTIVE);
+
+    if (ret < 0) {
+        LOG_ERR("Error: Failed to configure interrupt on Clock In pin");
+    }
+
+}
+
+
+static void clock_gpio_callback_config(struct Idein_Instance * p_inst)
+{
+    int ret; 
+
+    gpio_init_callback(&p_inst->clock_gpio_cb, on_clock_in, BIT(clock_in.pin));
+
+    ret = gpio_add_callback(clock_in.port, &p_inst->clock_gpio_cb);
+
+    if (ret < 0) {
+        LOG_ERR("Error: Failed to add callback on resetB pin");
+    }
+}
+
+
+static void clock_gpio_init(struct Idein_Instance * p_inst) {
+    
+    int ret = 0; 
+
+    if (    !device_is_ready(clock_in.port)
+        ||  !device_is_ready(clock_out.port)) {
+        ret = 1;
+    }
+
+    assert(ret == 0);
+    clock_gpio_pin_config();
+    clock_gpio_interrupt_config();
+    clock_gpio_callback_config(p_inst);
+
+}
+
+
+static void on_clock_in(const struct device *dev, struct gpio_callback *cb, uint32_t pins) {
+    /* Broadcast clock hit to voice and usb listeners */
+    
+    struct Idein_Instance * p_inst =
+            CONTAINER_OF(cb, struct Idein_Instance, clock_gpio_cb);
+    
+    struct Idein_Evt evt = {
+        .sig = k_Idein_Evt_Sig_Clock_Event,
+        .data.note.note = note_data_raw
+    };
+    broadcast_event_to_listeners(p_inst, &evt);
+}
+
+
+static void comparator_circuit(struct Idein_Instance *p_inst, uint32_t *read_values, size_t size) {
+
+/* FIXME: I'd like to work on the resolution here. If we're only flipping 4 different bits, this greatly limits the possibility of which note gets hit. Come up with a scheme to make this more varied. */
+    for (int i = 0; i < size; i++) {
+        if (read_values[i] > p_inst->idein.threshold[i]) {
+            note_data_raw ^= (1 << i);
+        }
+    }
+
+}
 
 
 /* **********
@@ -612,6 +708,16 @@ static void state_run_run(void * o)
         case k_Idein_SM_Evt_Timer_Elapsed:
            
             break; 
+
+        case k_Idein_SM_Evt_Sig_Sensor_Read:
+            
+            uint32_t read_values[4];
+            memcpy(read_values, p_evt->data.sensor_read.read_values, sizeof(p_evt->data.sensor_read.read_values));
+
+            comparator_circuit(p_inst, read_values, (sizeof(read_values)/sizeof(read_values[0])));
+
+            break;
+
         case k_Idein_SM_Evt_Sig_Pot_Value_Changed:
             
             for (int i = 0; i < 4; i++) {

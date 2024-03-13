@@ -5,6 +5,9 @@
 /* *****************************************************************************
  * TODO
 
+    This module is responsible for the voice engine and its state machine. All 
+    DSP will take place here.
+
  */
 
 /* *****************************************************************************
@@ -503,6 +506,10 @@ static void state_run_run(void * o)
             /* Should never occur. */
             assert(false);
             break;
+        case k_Voice_SM_Evt_Sig_New_Note_Event:
+            /* TODO */
+            // this is where we get the root note. From here we can figure out what our calculations are, depending on the other parameters. 
+            break; 
         #if CONFIG_FKMG_VOICE_SHUTDOWN_ENABLED
         case k_Voice_Evt_Sig_Instance_Deinitialized:
             assert(false);

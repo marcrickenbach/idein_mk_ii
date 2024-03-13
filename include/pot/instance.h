@@ -78,9 +78,9 @@ struct Pot_Instance{
     
     struct adc_sequence sequence; 
 
-    uint16_t adc_buffer[1];
-    uint16_t adc_current_reading[k_Pot_Id_Cnt]; 
-    uint16_t last_adc_read[k_Pot_Id_Cnt];
+    uint16_t adc_buffer[5];
+    float adc_filtered[5]; 
+    uint32_t adc_readings[5];
 
 
     /* Current pot. */

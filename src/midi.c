@@ -4,12 +4,8 @@
 
 /* *****************************************************************************
  * TODO
- * Further testing after changes. I now store midi note data in this object and
- * update them only on voltage pot changes. That way we don't recaculate midi notes
- * on each firing. This has resolved previous crash issues. 
- * 
- * On each timer interrupt in sequencer layer, we send a note on or off to this
- * object.
+ * prepares MIDI packages for transmission and receives MIDI packages. 
+ * Transmits and Receives MIDI data over USB. 
  */
 
 /* *****************************************************************************

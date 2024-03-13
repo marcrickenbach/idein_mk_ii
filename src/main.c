@@ -33,6 +33,9 @@
 #include "voice.h"
 #include "voice/private/sm_evt.h"
 
+#include "ui.h"
+#include "ui/private/sm_evt.h"
+
 
 /* *****************************************************************************
  * Defines
@@ -96,6 +99,18 @@ K_THREAD_STACK_DEFINE(voice_thread_stack, VOICE_THREAD_STACK_SZ_BYTES);
 K_MSGQ_DEFINE(voice_sm_evt_q, sizeof(struct Voice_SM_Evt),
         MAX_QUEUED_VOICE_SM_EVTS, VOICE_SM_QUEUE_ALIGNMENT);
 static struct Voice_Instance voice_inst;
+
+
+/* Declare threads, queues, and other data structures for Sensor instance. */
+static struct k_thread ui_thread;
+#define UI_THREAD_STACK_SZ_BYTES   512
+K_THREAD_STACK_DEFINE(ui_thread_stack, UI_THREAD_STACK_SZ_BYTES);
+#define MAX_QUEUED_UI_SM_EVTS  10
+#define UI_SM_QUEUE_ALIGNMENT  4
+K_MSGQ_DEFINE(ui_sm_evt_q, sizeof(struct UI_SM_Evt),
+        MAX_QUEUED_UI_SM_EVTS, UI_SM_QUEUE_ALIGNMENT);
+static struct UI_Instance ui_inst;
+
 
 /* Declare threads, queues, and other data structures for Sensor instance. */
 static struct k_thread sensor_thread;
@@ -178,6 +193,13 @@ static void on_voice_instance_initialized(struct Voice_Evt *p_evt)
 	k_event_post(&events, EVT_FLAG_INSTANCE_INITIALIZED);
 }
 
+static void on_ui_instance_initialized(struct UI_Evt *p_evt)
+{
+    assert(p_evt->sig == k_UI_Evt_Sig_Instance_Initialized);
+    assert(p_evt->data.initd.p_inst == &ui_inst);
+	k_event_post(&events, EVT_FLAG_INSTANCE_INITIALIZED);
+}
+
 static void wait_on_instance_initialized(void)
 {
 	uint32_t events_rcvd = k_event_wait(&events, EVT_FLAG_INSTANCE_INITIALIZED,
@@ -186,7 +208,22 @@ static void wait_on_instance_initialized(void)
 }
 
 
-  
+  /* ********************
+ * ON BUTTON PRESS
+ * ********************/
+
+
+static void on_button_press(struct UI_Evt *p_evt)
+{
+    assert(p_evt->sig == k_UI_Evt_Sig_Button_Press);
+
+    struct Codec_SM_Evt codec_evt = {
+        .sig = k_Codec_SM_Evt_Sig_Trigger_Sine,
+    }; 
+
+    k_msgq_put(&codec_sm_evt_q, &codec_evt, K_NO_WAIT);
+}
+
 
 /* ********************
  * ON POT CHANGE
@@ -211,15 +248,56 @@ static void on_pot_changed(struct Pot_Evt *p_evt)
 }
 
 
+/* ********************
+ * ON CLOCK EVENT
+ * ********************/
+
+static void on_clock_event(struct Idein_Evt *p_evt)
+{
+    assert(p_evt->sig == k_Idein_Evt_Sig_Clock_Event);
+
+    struct Voice_SM_Evt voice_evt = {
+        .sig = k_Voice_SM_Evt_Sig_New_Note_Event,
+        .data.note.val = p_evt->data.note.note
+    }; 
+
+    k_msgq_put(&voice_sm_evt_q, &voice_evt, K_NO_WAIT);
+}
+
 
 /* ********************
- * ON SENSOR READ 
+ * SENSOR LISTENER CALLBACKS 
  * ********************/
 
 static void on_sensor_read(struct Sensor_Evt *p_evt) 
 {
+    assert(p_evt->sig == k_Sensor_Evt_Sig_Read);
 
+    struct Idein_SM_Evt_Sig_Read_New * p_read = (struct Idein_SM_Evt_Sig_Read_New *)&p_evt->data.read;
+
+    uint32_t val[5];
+    memcpy(val, p_read->read_values, sizeof(p_read->read_values));
+
+    struct Idein_SM_Evt seq_evt = {
+        .sig = k_Idein_SM_Evt_Sig_Sensor_Read,
+        .data.sensor_read = val
+    };
 }
+
+static void on_sensor_setup(struct Sensor_Evt *p_evt) 
+{
+    /* Read event data which gives us a bool of true or false, telling us if the sensor set up passed or failed*/
+    struct Sensor_SM_Evt_Sensor_Setup_Complete * p_setup = (struct Sensor_SM_Evt_Sensor_Setup_Complete *)&p_evt->data.setup;
+
+    /* Create an event with set up result to UI module */
+    struct UI_SM_Evt evt = {
+        .sig = k_UI_SM_Evt_Sig_Sensor_Setup_Complete,
+        .data.pass = p_setup->setup
+    };
+
+    k_msgq_put(&ui_sm_evt_q, &evt, K_NO_WAIT);
+}
+
 
 
 /* *****************************************************************************
@@ -227,7 +305,31 @@ static void on_sensor_read(struct Sensor_Evt *p_evt)
  */
 
    int main (void) {
-    // /* Instance: Pot */
+
+    /* Instance: UI */
+    struct UI_Instance_Cfg ui_inst_cfg = {
+        .p_inst = &ui_inst,
+        .task.sm.p_thread = &ui_thread,
+        .task.sm.p_stack = ui_thread_stack,
+        .task.sm.stack_sz = K_THREAD_STACK_SIZEOF(ui_thread_stack),
+        .task.sm.prio = K_LOWEST_APPLICATION_THREAD_PRIO,
+        .msgq.p_sm_evts = &ui_sm_evt_q,
+        .cb = on_ui_instance_initialized,
+    };
+    UI_Init_Instance(&ui_inst_cfg);
+    wait_on_instance_initialized();
+
+    static struct UI_Listener ui_btn_lsnr;
+    struct UI_Listener_Cfg ui_btn_lsnr_cfg = {
+        .p_inst = &ui_inst,
+        .p_lsnr = &ui_btn_lsnr, 
+        .sig     = k_UI_Evt_Sig_Button_Press,
+        .cb      = on_button_press
+    };
+    UI_Add_Listener(&ui_btn_lsnr_cfg);
+
+
+    /* Instance: Pot */
     struct Pot_Instance_Cfg pot_inst_cfg = {
         .p_inst = &pot_inst,
         .task.sm.p_thread = &pot_thread,
@@ -293,6 +395,14 @@ static void on_sensor_read(struct Sensor_Evt *p_evt)
     Sensor_Init_Instance(&sensor_inst_cfg);
     wait_on_instance_initialized();
     
+    static struct Sensor_Listener sensor_setup_lsnr;
+    struct Sensor_Listener_Cfg sensor_setup_lsnr_cfg = {
+        .p_inst = &sensor_inst,
+        .p_lsnr = &sensor_setup_lsnr, 
+        .sig     = k_Sensor_Evt_Sig_Sensor_Setup_Complete,
+        .cb      = on_sensor_setup
+    };
+    Sensor_Add_Listener(&sensor_setup_lsnr_cfg);
 
     static struct Sensor_Listener sensor_read_lsnr;
     struct Sensor_Listener_Cfg sensor_read_lsnr_cfg = {
@@ -330,6 +440,14 @@ static void on_sensor_read(struct Sensor_Evt *p_evt)
     Idein_Init_Instance(&idein_inst_cfg);
     wait_on_instance_initialized();
     
+    static struct Idein_Listener idein_clock_lsnr;
+    struct Idein_Listener_Cfg idein_clock_lsnr_cfg = {
+        .p_inst = &idein_inst,
+        .p_lsnr = &idein_clock_lsnr, 
+        .sig     = k_Idein_Evt_Sig_Clock_Event,
+        .cb      = on_clock_event
+    };
+    Idein_Add_Listener(&idein_clock_lsnr_cfg);
 
     return 0;
 

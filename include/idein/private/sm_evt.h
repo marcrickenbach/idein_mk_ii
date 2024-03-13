@@ -38,6 +38,7 @@ enum Idein_SM_Evt_Sig{
     k_Idein_SM_Evt_Sig_Pot_Value_Changed,
     k_Idein_SM_Evt_Sig_UART_RX_Received,
     k_Idein_SM_Evt_Sig_Button_Pressed,
+    k_Idein_SM_Evt_Sig_Sensor_Read,
 
     k_Idein_SM_Evt_Sig_End,                           // Exclusive
     k_Idein_SM_Evt_Sig_Max = k_Idein_SM_Evt_Sig_End - 1,// Inclusive
@@ -61,8 +62,7 @@ struct Idein_SM_Evt_Sig_Timer_Elapsed{
 
 /* Data signal k_Idein_SM_Evt_Sig_Pot_Value_Changed can generate. */
 struct Idein_SM_Evt_Sig_Pot_Value_Changed{
-    enum Pot_Id pot_id; 
-    uint32_t val; 
+    uint32_t val[5]; 
 };
 
 
@@ -72,6 +72,10 @@ struct Idein_SM_Evt_Sig_UART_RX_RECEIVED{
     uint8_t bytes[3]; 
 };
 
+/* Data signal k_Idein_SM_Evt_Sig_Read_New can generate. */
+struct Idein_SM_Evt_Sig_Read_New{
+    uint32_t read_values[4];
+};
 
 /* Data signal k_Idein_SM_Evt_Sig_Button_Pressed can generate. */
 struct Idein_SM_Evt_Sig_Button_Pressed{
@@ -86,10 +90,10 @@ struct Idein_SM_Evt{
 	enum Idein_SM_Evt_Sig sig;
 	union Idein_SM_Evt_Data{
         struct Idein_SM_Evt_Sig_Init_Instance        init_inst;
-        struct Idein_SM_Evt_Sig_Timer_Elapsed        stepped;
         struct Idein_SM_Evt_Sig_Pot_Value_Changed    pot_changed;
         struct Idein_SM_Evt_Sig_UART_RX_RECEIVED     midi_cmd; 
         struct Idein_SM_Evt_Sig_Button_Pressed       btn_pressed;
+        struct Idein_SM_Evt_Sig_Read_New             sensor_read;
 	}data;
 };
 

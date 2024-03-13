@@ -5,9 +5,6 @@
 #include <dt-bindings/timer/stm32-timer.h>
 #include <dt-bindings/dma/stm32_dma.h>
 
-
-/* How do we initialize SWDIO/SWCLK pins for tagconnect? */
-
 /{
     zephyr,user {
 
@@ -17,7 +14,7 @@
         led-3-gpios         =   <&gpiod 2 GPIO_ACTIVE_HIGH>;
         led-4-gpios         =   <&gpiob 3 GPIO_ACTIVE_HIGH>;
         led-modered-gpios    =   <&gpioc 14 GPIO_ACTIVE_HIGH>;
-        led-modegreen-gpios    =   <&gpioc 15 GPIO_ACTIVE_HIGH>;
+        led-modegreen-gpios  =   <&gpioc 15 GPIO_ACTIVE_HIGH>;
         enc-led-1-gpios     =   <&gpiob 0 GPIO_ACTIVE_HIGH>;
         enc-led-2-gpios     =   <&gpiob 9 GPIO_ACTIVE_HIGH>;
         
@@ -27,7 +24,7 @@
         btn3-gpios          =   <&gpioc 7 GPIO_PULL_DOWN>;
         btn4-gpios          =   <&gpioc 8 GPIO_PULL_DOWN>;
         btn5-gpios          =   <&gpioc 9 GPIO_PULL_DOWN>;
-        mode-gpios       =   <&gpiob 2 GPIO_PULL_DOWN>;
+        mode-gpios          =   <&gpiob 2 GPIO_PULL_DOWN>;
 
         int-clk-out-gpios   =   <&gpiob 4 GPIO_ACTIVE_HIGH>;
         ext-clk-in-gpios    =   <&gpiob 5 GPIO_PULL_DOWN>;

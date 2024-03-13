@@ -54,8 +54,7 @@ struct Pot_Evt_Data_Instance_Initialized{
 
 /* Data signal k_Pot_Evt_Sig_Changed can generate. */
 struct Pot_Evt_Data_Changed{
-    enum Pot_Id id;
-    uint32_t    val;
+    uint32_t    val[5];
 };
 
 /* Events (i.e. signal + signal's data if any) that can be generated. */

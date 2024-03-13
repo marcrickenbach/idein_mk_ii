@@ -16,10 +16,11 @@ set(app_sources
     src/codec.c
     src/main.c
     src/midi.c
-    src/sensor.c
     src/idein.c
+    src/sensor.c
     src/pot.c
     src/voice.c
+    src/ui.c
 
     # Add other source files here
 )
