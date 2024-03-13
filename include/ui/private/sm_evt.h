@@ -32,6 +32,7 @@ enum UI_SM_Evt_Sig{
     #if CONFIG_FKMG_UI_ALLOW_SHUTDOWN
 	k_UI_SM_Evt_Sig_Deinit_Instance,
     #endif
+    k_UI_SM_Evt_Sig_Read_Encoder,
 	k_UI_SM_Evt_Sig_Sensor_Setup_Complete,
 
     k_UI_SM_Evt_Sig_End,                           // Exclusive

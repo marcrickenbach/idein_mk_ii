@@ -37,6 +37,8 @@
 #include <zephyr/device.h>
 
 #include <zephyr/drivers/gpio.h>
+#include <zephyr/drivers/sensor.h>
+#include <zephyr/drivers/counter.h>
 
 #include <assert.h>
 
@@ -54,6 +56,7 @@
 #define NO_OVERRIDE false
 
 #define GPIO_PINS   DT_PATH(zephyr_user)
+
 
 /* *****************************************************************************
  * Debugging
@@ -112,6 +115,8 @@ static void on_button_5(const struct device *dev, struct gpio_callback *cb, uint
 static void on_button_encoder(const struct device *dev, struct gpio_callback *cb, uint32_t pins);
 
 
+
+const struct device *const enc_dev = DEVICE_DT_GET(DT_NODELABEL(qdec));
 
 /* *****************************************************************************
  * Private
@@ -220,6 +225,27 @@ static void config_instance_queues(
 }
 
 /* Forward reference */
+static void on_encoder_timer_expiry(struct k_timer * p_timer);
+
+/* Cause conversion event to occur immediately and then regularly after that. */
+static void init_encoder_timer(struct UI_Instance * p_inst)
+{
+    #define ON_ENCODER_TIMER_EXPIRY  on_encoder_timer_expiry
+    #define ON_ENCODER_TIMER_STOPPED NULL
+    k_timer_init(&p_inst->timer.encoder, ON_ENCODER_TIMER_EXPIRY,
+            ON_ENCODER_TIMER_STOPPED);
+}
+
+static void start_encoder_timer(struct UI_Instance * p_inst)
+{
+    #define ENCODER_INITIAL_DURATION     K_NO_WAIT
+    #define ENCODER_AUTO_RELOAD_PERIOD   K_MSEC(50)
+    k_timer_start(&p_inst->timer.encoder, ENCODER_INITIAL_DURATION,
+            ENCODER_AUTO_RELOAD_PERIOD);
+
+}
+
+/* Forward reference */
 static void button_gpio_init(struct UI_Instance * p_inst); 
 
 static void config_instance_deferred(
@@ -227,6 +253,8 @@ static void config_instance_deferred(
         struct Pot_Instance_Cfg * p_cfg)
 {
     button_gpio_init(p_inst);
+    init_encoder_timer(p_inst);
+    start_encoder_timer(p_inst);
 }
 
 /* Since configuration starts on caller's thread, configure fields that require
@@ -545,13 +573,25 @@ static void button_gpio_init(struct UI_Instance * p_inst) {
 }
 
 
+static void on_encoder_timer_expiry(struct k_timer * p_timer)
+{
+    struct UI_Instance * p_inst =
+                CONTAINER_OF(p_timer, struct UI_Instance, timer.encoder);
+
+    struct UI_SM_Evt evt = {
+        .sig = k_UI_SM_Evt_Sig_Read_Encoder
+    };
+
+    q_sm_event(p_inst, &evt);
+}
+
 /* ********************
  * Button Callbacks
  * ********************/
 
 static void on_button_0(const struct device *dev, struct gpio_callback *cb, uint32_t pins) {
     LOG_INF("Button 0 pressed");
-    
+
 }
 
 static void on_button_1(const struct device *dev, struct gpio_callback *cb, uint32_t pins) {
@@ -600,6 +640,35 @@ static void setup_led_indicator(struct UI_Instance * p_inst, bool pass)
         }
     }
 }
+
+static int32_t encoder_reading(struct UI_Instance * p_inst) 
+{
+    struct sensor_value enc_val;
+    int rc;
+
+    rc = sensor_sample_fetch(enc_dev);
+    
+    if (rc) {
+        LOG_ERR("Failed to fetch sample from encoder");
+        return;
+    }
+            
+    rc = sensor_channel_get(enc_dev, SENSOR_CHAN_ROTATION, &enc_val);
+    if (rc != 0) {
+        printk("Failed to get data (%d)\n", rc);
+        return 0;
+    }
+
+    return enc_val.val1;
+}
+
+
+
+static void encoder_timer_expiry(struct k_timer *timer_id)
+{
+
+}
+
 
 /* **********
  * FSM States
@@ -716,7 +785,10 @@ static void state_run_run(void * o)
             /* Should never occur. */
             assert(false);
             break;
-        case k_UI_Evt_Sig_Write:
+        case k_UI_SM_Evt_Sig_Read_Encoder:
+
+            int32_t enc_val = encoder_reading(p_inst); 
+            LOG_INF("Encoder value: %d", enc_val);
 
             break;
         case k_UI_SM_Evt_Sig_Sensor_Setup_Complete:

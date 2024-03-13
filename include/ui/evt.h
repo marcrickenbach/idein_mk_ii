@@ -34,8 +34,8 @@ enum UI_Evt_Sig{
     k_UI_Evt_Sig_Instance_Deinitialized,
     #endif
     k_UI_Evt_Sig_TimerUp,                    //
-    k_UI_Evt_Sig_Write,                      // Write to UI
-    k_UI_Evt_Sig_Button_Press,                       // Read from UI
+    k_UI_Evt_Sig_Write,               
+    k_UI_Evt_Sig_Button_Press,                 
 
 
     k_UI_Evt_Sig_End,                        // Exclusive

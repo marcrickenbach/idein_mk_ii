@@ -190,12 +190,13 @@
 
 &timers2 {
     status = "okay";
-    st,prescaler = <9599>;
-    st,countermode = <0>; 
-    compatible = "st,stm32-timers";
-    counter_timer1: counter {
-        compatible = "st,stm32-counter";
+    qdec: qdec {
         status = "okay";
+        pinctrl-0 = <&tim2_ch1_pa0 &tim2_ch2_pa1>;
+        pinctrl-names = "default";
+        st,input-polarity-inverted;
+        st,input-filter-level = <FDIV32_N8>;
+        st,counts-per-revolution = <16>;
     };
 };
 

@@ -68,8 +68,13 @@ struct UI_Instance{
         sys_snode_t instance;
     }node;
 
+    struct {
+        struct k_timer encoder;
+    } timer;
+
     /* Current Channel. */
     enum UI_Id id;
+
 };
 
 #ifdef __cplusplus
